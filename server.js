@@ -15,8 +15,7 @@ class Player {
         console.log(`Player id ${this.id} kills ped id ${pedID}`);
         const value = 1;
         this.score += value;
-        const player = NetworkGetPlayerIndexFromPed(this.id);
-        console.log(player);
+
         emitNet("killEvent", this.id, this.score, value);
     }
 }
@@ -33,6 +32,8 @@ function watchPeds() {
                 if (players[playerID] === undefined) {
                     players[playerID] = new Player(playerID);
                 }
+                const player = NetworkGetPlayerIndexFromPed(playerID);
+                console.log(player);
                 players[playerID].kill(pedID);
             }
 
