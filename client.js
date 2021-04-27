@@ -27,18 +27,11 @@ on('onClientGameTypeStart', () => {
 function getPedValue(pedID) {
     const pedType = GetPedType(pedID);
 
-    console.log(pedType);
-
-    switch (pedType) {
-        case 6:
-            return 10;
-        default:
-            return 1;
-    }
+    return pedType;
 }
 
 onNet('killEvent', (killerID, pedID) => {
-    emitNet("killEvent", killerID, this.getPedValue(pedID));
+    emitNet("killEvent", killerID, getPedValue(pedID));
 });
 
 
