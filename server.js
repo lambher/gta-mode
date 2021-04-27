@@ -1,12 +1,12 @@
 const data = {};
 
 
-on('playerConnecting', (name, setKickReason, deferrals) => {
-    deferrals.defer()
+// on('playerConnecting', (name, setKickReason, deferrals) => {
+//     deferrals.defer()
 
-    const player = global.source;
-    console.log("playerConnecting " + player);
-})
+//     const player = global.source;
+//     console.log("playerConnecting " + player);
+// })
 
 
 function watchPeds() {
