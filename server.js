@@ -6,7 +6,7 @@ const players = {};
 class Player {
     constructor(pedID) {
         this.score = 0;
-        this.id = getPlayerIDFromPedID(pedID);
+        this.id = pedID;
         this.pedIds = [];
     }
 
@@ -20,6 +20,12 @@ class Player {
     }
 }
 
+on('playerConnecting', (name, setKickReason, deferrals) => {
+    const player = global.source;
+
+    const ped = GetPlayerPed(player);
+    console.log(ped);
+})
 
 function getPlayerIDFromPedID(pedID) {
     for (let i = 0; i < 31; i++) {
