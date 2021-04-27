@@ -1,3 +1,17 @@
+const data = {};
+
+
+on('playerConnecting', (name, setKickReason, deferrals) => {
+    deferrals.defer()
+
+    const player = global.source;
+    console.log("playerConnecting " + name);
+    console.log(setKickReason);
+    console.log(player);
+
+})
+
+
 function watchPeds() {
     const peds = GetAllPeds();
 
@@ -5,7 +19,9 @@ function watchPeds() {
     peds.forEach(pedID => {
         const playerID = GetPedSourceOfDeath(pedID);
         if (playerID !== 0) {
-            console.log(playerID);
+            player = GetPlayerFromServerId(playerID);
+            console.log("killer " + playerID);
+            console.log(player);
         }
     });
 
