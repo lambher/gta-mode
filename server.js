@@ -18,7 +18,7 @@ class Player {
 
 function watchPeds() {
     const peds = GetAllPeds();
-
+    console.log(peds);
 
     peds.forEach(pedID => {
         const playerID = GetPedSourceOfDeath(pedID);
