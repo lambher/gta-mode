@@ -1,4 +1,4 @@
-const peds = {};
+const pedIDs = {};
 
 
 const players = {};
@@ -23,8 +23,8 @@ function watchPeds() {
     peds.forEach(pedID => {
         const playerID = GetPedSourceOfDeath(pedID);
         if (playerID !== 0) {
-            if (peds[pedID] === undefined) {
-                peds[pedID] = true;
+            if (pedIDs[pedID] === undefined) {
+                pedIDs[pedID] = true;
                 if (players[playerID] === undefined) {
                     players[playerID] = new Player(playerID);
                 }
