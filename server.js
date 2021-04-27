@@ -2,11 +2,12 @@ const pedIDs = {};
 
 
 const players = {};
+const playerPeds = {};
 
 class Player {
     constructor(pedID) {
         this.score = 0;
-        this.id = pedID;
+        this.id = playerPeds[pedID];
         this.pedIds = [];
     }
 
@@ -22,7 +23,7 @@ class Player {
 
 on('respawnPlayerPedEvent', (player, content) => {
     const ped = GetPlayerPed(player);
-    console.log(ped);
+    playerPeds[ped] = player;
 })
 
 function getPlayerIDFromPedID(pedID) {
