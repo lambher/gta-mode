@@ -14,9 +14,7 @@ function watchPeds() {
     peds.forEach(pedID => {
         const playerID = GetPedSourceOfDeath(pedID);
         if (playerID !== 0) {
-            player = GetPlayerFromServerId(playerID);
             console.log("killer " + playerID);
-            console.log(player);
         }
     });
 
