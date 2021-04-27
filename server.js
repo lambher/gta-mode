@@ -8,18 +8,22 @@ class Player {
     constructor(id) {
         this.score = 0;
         this.id = id;
-        this.pedIds = [];
     }
 
-    kill(pedID) {
-        this.pedIds.push(pedID);
-        console.log(`Player id ${this.id} kills ped id ${pedID}`);
-        const value = getPedValue(pedID);
+    kill(value) {
+        console.log(`Player id ${this.id} kills with value ${value}`);
         this.score += value;
 
-        emitNet("killEvent", this.id, this.score, value);
+        emitNet("scoreEvent", this.id, this.score, value);
     }
 }
+
+onNet('killEvent', (killerID, value) => {
+    if (players[killerID] !== undefined) {
+        players[killerID].kill(value);
+
+    }
+});
 
 // enum ePedType
 // {
@@ -56,18 +60,7 @@ class Player {
 // };
 
 
-function getPedValue(pedID) {
-    const pedType = GetPedType(pedID);
 
-    console.log(pedType);
-
-    switch (pedType) {
-        case 6:
-            return 10;
-        default:
-            return 1;
-    }
-}
 
 on('respawnPlayerPedEvent', (player, content) => {
     const ped = GetPlayerPed(player);
@@ -96,7 +89,7 @@ function watchPeds() {
                     if (players[playerID] === undefined) {
                         players[playerID] = new Player(playerID);
                     }
-                    players[playerID].kill(pedID);
+                    emitNet("killEvent", playerID, playerID, pedID);
                 }
 
             }

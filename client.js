@@ -24,7 +24,25 @@ on('onClientGameTypeStart', () => {
     exports.spawnmanager.forceRespawn()
 });
 
-onNet('killEvent', (score, value) => {
+function getPedValue(pedID) {
+    const pedType = GetPedType(pedID);
+
+    console.log(pedType);
+
+    switch (pedType) {
+        case 6:
+            return 10;
+        default:
+            return 1;
+    }
+}
+
+onNet('killEvent', (killerID, pedID) => {
+    emitNet("killEvent", killerID, this.getPedValue(pedID));
+});
+
+
+onNet('scoreEvent', (score, value) => {
     emit('chat:addMessage', {
         args: [
             `${playerName} earns ${value} and his score is ${score}`
