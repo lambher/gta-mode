@@ -1,5 +1,8 @@
 const spawnPos = [686.245, 577.950, 130.461];
 
+let playerID;
+let playerName = "";
+
 on('onClientGameTypeStart', () => {
     exports.spawnmanager.setAutoSpawnCallback(() => {
         exports.spawnmanager.spawnPlayer({
@@ -15,7 +18,8 @@ on('onClientGameTypeStart', () => {
             })
         });
     });
-
+    playerID = GetPlayerIndex();
+    playerName = GetPlayerName(playerID);
     exports.spawnmanager.setAutoSpawn(true)
     exports.spawnmanager.forceRespawn()
 });
@@ -23,7 +27,7 @@ on('onClientGameTypeStart', () => {
 onNet('killEvent', (score, value) => {
     emit('chat:addMessage', {
         args: [
-            `I earn ${value} and my score is ${score}`
+            `${playerName} earns ${value} and his score is ${score}`
         ]
     })
 })
