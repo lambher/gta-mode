@@ -1,10 +1,19 @@
-const data = {};
+const peds = {};
 
 
-on('playerConnecting', (name, setKickReason, deferrals) => {
-    const player = global.source;
-    console.log("playerConnecting " + player);
-});
+const players = {};
+
+class Player {
+    constructor(id) {
+        this.id = id;
+        this.pedIds = [];
+    }
+
+    kill(pedID) {
+        this.pedIds.push(pedID);
+        console.log(`Player id ${this.id} kills ped id ${pedID}`);
+    }
+}
 
 
 function watchPeds() {
@@ -14,7 +23,15 @@ function watchPeds() {
     peds.forEach(pedID => {
         const playerID = GetPedSourceOfDeath(pedID);
         if (playerID !== 0) {
-            console.log("killer " + playerID);
+            if (peds[pedID] === undefined) {
+                peds[pedID] = true;
+                if (players[playerID] === undefined) {
+                    players[playerID] = new Player(playerID);
+                }
+                players[playerID].kill(pedID);
+            }
+
+
         }
     });
 
