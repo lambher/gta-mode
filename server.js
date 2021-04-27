@@ -5,9 +5,9 @@ const players = {};
 const playerPeds = {};
 
 class Player {
-    constructor(pedID) {
+    constructor(id) {
         this.score = 0;
-        this.id = playerPeds[pedID];
+        this.id = id;
         this.pedIds = [];
     }
 
@@ -39,14 +39,18 @@ function watchPeds() {
     const peds = GetAllPeds();
 
     peds.forEach(pedID => {
-        const playerID = GetPedSourceOfDeath(pedID);
-        if (playerID !== 0) {
+        const pedKillerID = GetPedSourceOfDeath(pedID);
+        if (pedKillerID !== 0) {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
-                if (players[playerID] === undefined) {
-                    players[playerID] = new Player(playerID);
+                if (playerPeds[pedKillerID] !== undefined) {
+                    const playerID = playerPeds[pedKillerID];
+                    if (players[playerID] === undefined) {
+                        players[playerID] = new Player(playerID);
+                    }
+                    players[playerID].kill(pedID);
                 }
-                players[playerID].kill(pedID);
+
             }
 
 
