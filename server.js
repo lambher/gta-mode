@@ -2,7 +2,12 @@ function watchPeds() {
     const peds = GetAllPeds();
 
 
-    console.log(peds);
+    peds.forEach(pedID => {
+        const playerID = GetPedSourceOfDeath(pedID);
+        if (playerID !== 0) {
+            console.log(playerID);
+        }
+    });
 
     setTimeout(watchPeds, 100);
 }
