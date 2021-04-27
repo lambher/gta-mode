@@ -5,10 +5,7 @@ on('playerConnecting', (name, setKickReason, deferrals) => {
     deferrals.defer()
 
     const player = global.source;
-    console.log("playerConnecting " + name);
-    console.log(setKickReason);
-    console.log(player);
-
+    console.log("playerConnecting " + player);
 })
 
 
