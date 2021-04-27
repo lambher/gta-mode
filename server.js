@@ -4,9 +4,9 @@ const pedIDs = {};
 const players = {};
 
 class Player {
-    constructor(id) {
+    constructor(pedID) {
         this.score = 0;
-        this.id = id;
+        this.id = getPlayerIDFromPedID(pedID);
         this.pedIds = [];
     }
 
@@ -17,6 +17,15 @@ class Player {
         this.score += value;
 
         emitNet("killEvent", this.id, this.score, value);
+    }
+}
+
+
+function getPlayerIDFromPedID(pedID) {
+    for (let i = 0; i < 31; i++) {
+        if (pedID == GetPlayerPed(i)) {
+            return i;
+        }
     }
 }
 
@@ -32,10 +41,6 @@ function watchPeds() {
                 if (players[playerID] === undefined) {
                     players[playerID] = new Player(playerID);
                 }
-                const cause = GetPedCauseOfDeath(pedID)
-                console.log(cause);
-                // const player = NetworkGetPlayerIndexFromPed(playerID);
-                // console.log(player);
                 players[playerID].kill(pedID);
             }
 
