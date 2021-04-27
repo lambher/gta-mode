@@ -1,3 +1,10 @@
-const peds = GetAllPeds();
+function watchPeds() {
+    const peds = GetAllPeds();
 
-console.log(peds);
+
+    console.log(peds);
+
+    setTimeout(watchPeds, 100);
+}
+
+watchPeds();
