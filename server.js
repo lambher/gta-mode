@@ -32,8 +32,10 @@ function watchPeds() {
                 if (players[playerID] === undefined) {
                     players[playerID] = new Player(playerID);
                 }
-                const player = NetworkGetPlayerIndexFromPed(playerID);
-                console.log(player);
+                const cause = GetPedCauseOfDeath(pedID)
+                console.log(cause);
+                // const player = NetworkGetPlayerIndexFromPed(playerID);
+                // console.log(player);
                 players[playerID].kill(pedID);
             }
 
