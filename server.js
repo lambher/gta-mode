@@ -12,6 +12,8 @@ class Player {
     kill(pedID) {
         this.pedIds.push(pedID);
         console.log(`Player id ${this.id} kills ped id ${pedID}`);
+        const ped = GetPlayerPed(pedID);
+        console.log(ped);
     }
 }
 
