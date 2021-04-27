@@ -20,9 +20,7 @@ class Player {
     }
 }
 
-on('playerConnecting', (name, setKickReason, deferrals) => {
-    const player = global.source;
-
+on('respawnPlayerPedEvent', (player, content) => {
     const ped = GetPlayerPed(player);
     console.log(ped);
 })
