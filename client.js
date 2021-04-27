@@ -19,3 +19,11 @@ on('onClientGameTypeStart', () => {
     exports.spawnmanager.setAutoSpawn(true)
     exports.spawnmanager.forceRespawn()
 });
+
+onNet('killEvent', (score, value) => {
+    emit('chat:addMessage', {
+        args: [
+            `I earn ${value} and my score is ${score}`
+        ]
+    })
+})

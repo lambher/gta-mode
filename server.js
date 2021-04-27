@@ -5,6 +5,7 @@ const players = {};
 
 class Player {
     constructor(id) {
+        this.score = 0;
         this.id = id;
         this.pedIds = [];
     }
@@ -12,8 +13,9 @@ class Player {
     kill(pedID) {
         this.pedIds.push(pedID);
         console.log(`Player id ${this.id} kills ped id ${pedID}`);
-        const ped = GetPlayerPed(pedID);
-        console.log(ped);
+        const value = 1;
+        this.score += value;
+        emitNet("killEvent", this.id, this.score, value);
     }
 }
 
