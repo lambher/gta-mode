@@ -115,13 +115,21 @@ function getPedValue(pedID) {
 }
 
 function spawnCar(car) {
+    emitNet("test", 'spawnCar', car);
     const carHash = GetHashKey(car);
+    emitNet("test", 'carHash', carHash);
+
     RequestModel(carHash);
     let loaded = HasModelLoaded(carHash);
+    emitNet("test", 'loaded', loaded);
+
     while (loaded === false) {
         loaded = HasModelLoaded(carHash);
+        emitNet("test", 'loaded', loaded);
     }
     const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
+    emitNet("test", 'pos', pos);
+
     CreateVehicle(carHash, pos[0] + 3, pos[1] + 3, pos[2] + 1, 0, true, false);
 }
 
