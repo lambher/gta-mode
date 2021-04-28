@@ -23,7 +23,10 @@ on('onClientGameTypeStart', () => {
     });
     playerID = GetPlayerIndex();
     playerName = GetPlayerName(playerID);
-    emitNet("test", "GetPlayerIndex", playerID);
+    if (clientID !== 0) {
+        emitNet("restartEvent", clientID);
+    }
+
 
     exports.spawnmanager.setAutoSpawn(true)
     exports.spawnmanager.forceRespawn()
@@ -41,6 +44,9 @@ onNet('scoreEvent', (score, value) => {
             `${playerName} earns ${value} and his score is ${score}`
         ]
     })
+
+    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true)
+    DrawDebugText(`score : ${score}`, pos[0], pos[1], pos[2], 0, 255, 0, 1)
 })
 
 onNet('setClientID', (id) => {

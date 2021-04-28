@@ -29,6 +29,12 @@ onNet('test', (tag, value) => {
 
 });
 
+onNet('restartEvent', (playerID, value) => {
+    if (players[playerID] !== undefined) {
+        players[playerID].score = 0;
+    }
+});
+
 
 
 
