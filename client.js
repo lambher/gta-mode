@@ -77,6 +77,8 @@ function getNearbyPeds() {
 }
 
 function watchPeds() {
+    let pp = GetPlayerPed(GetPlayerIndex());
+
     const peds = getNearbyPeds();
 
     peds.forEach(pedID => {
@@ -85,7 +87,7 @@ function watchPeds() {
         if (pedKillerID !== 0) {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
-                if (playerID === GetPlayerPed(pedKillerID)) {
+                if (pedKillerID === pp) {
                     emitNet("killEvent", playerID, getPedValue(pedID));
                 }
             }
