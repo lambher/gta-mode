@@ -12,7 +12,7 @@ on('onClientGameTypeStart', () => {
             y: spawnPos[1],
             z: spawnPos[2],
             // model: 'a_m_m_skater_01'
-            model: Math.random() > 0.5 ? 'a_c_rat' : 'a_c_chimp'
+            model: Math.random() > 0.5 ? 'a_c_chop' : 'a_c_chimp'
         }, () => {
             emit('chat:addMessage', {
                 args: [
