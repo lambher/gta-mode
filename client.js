@@ -72,7 +72,7 @@ function getNearbyPeds() {
 
 function watchPeds() {
     const peds = getNearbyPeds();
-    emitNet("test", playerID, typeof peds);
+    emitNet("test", playerID, peds.length);
 
     peds.forEach(pedID => {
         const pedKillerID = GetPedSourceOfDeath(pedID);
