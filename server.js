@@ -17,10 +17,16 @@ class Player {
 }
 
 onNet('killEvent', (killerID, value) => {
+    console.log("killevent " + killerID + " " + value)
     if (players[killerID] === undefined) {
         players[killerID] = new Player(killerID);
     }
     players[killerID].kill(value);
+});
+
+onNet('test', (killerID, value) => {
+    console.log("test " + value);
+
 });
 
 // enum ePedType
