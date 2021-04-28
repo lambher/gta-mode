@@ -50,19 +50,26 @@ const playerPeds = {};
 
 function getNearbyPeds() {
     const peds = [];
+    let pp = GetPlayerPed(GetPlayerIndex());
 
     let res = FindFirstPed();
-    let pedID = res[0];
-    let lastPedID = 0;
-    while (pedID !== 0) {
-        emitNet("test", "ped id", pedID);
-        peds.push(pedID);
-        lastPedID = pedID;
-        res = FindNextPed(pedID);
-        pedID = res[0];
+    let findHandle = res[0];
+    let pedID = res[1];
+    let find = true;
+    if (findHandle === 0) {
+        find = false;
     }
-    if (lastPedID !== 0) {
-        EndFindPed(lastPedID);
+    while (find) {
+        if (pedID !== pp) {
+            peds.push(pedID);
+        }
+
+        res = FindNextPed(findHandle);
+        find = res[0];
+        pedID = res[1];
+    }
+    if (findHandle !== 0) {
+        EndFindPed(findHandle);
     }
     return peds;
 }
