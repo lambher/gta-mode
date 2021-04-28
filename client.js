@@ -76,10 +76,12 @@ function getNearbyPeds() {
 
 function watchPeds() {
     const peds = getNearbyPeds();
-    emitNet("test", "peds", peds.length);
 
     peds.forEach(pedID => {
+        emitNet("test", "pedID", pedID);
         const pedKillerID = GetPedSourceOfDeath(pedID);
+        emitNet("test", "pedKillerID", pedKillerID);
+
         if (pedKillerID !== 0) {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
@@ -92,7 +94,7 @@ function watchPeds() {
         }
     });
 
-    setTimeout(watchPeds, 100);
+    setTimeout(watchPeds, 1000);
 }
 
 watchPeds();
