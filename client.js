@@ -49,25 +49,21 @@ const pedIDs = {};
 const playerPeds = {};
 
 function getNearbyPeds() {
-    var lst = [],
-        unk = 0.0,
-        ret = FindFirstPed(unk),
-        hnd = ret[0],
-        ref = ret[1],
-        more = true;
-    try {
-        var pp = GetPlayerPed(GetPlayerIndex());
-        while (hnd != 0 && ref > 0 && more !== false) {
-            if (ref != pp)
-                lst.push(ref);
-            ret = FindNextPed(hnd, unk);
-            more = ret[0];
-            ref = ret[1];
-        }
-    } finally {
-        EndFindPed(hnd);
+    const peds = [];
+
+    let res = FindFirstPed();
+    let pedID = res[0];
+    let lastPedID = 0;
+    while (pedID !== 0) {
+        peds.push(pedID);
+        lastPedID = pedID;
+        res = FindNextPed(pedID);
+        pedID = res[0];
     }
-    return lst;
+    if (lastPedID !== 0) {
+        EndFindPed(lastPedID);
+    }
+    return peds;
 }
 
 function watchPeds() {
