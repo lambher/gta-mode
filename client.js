@@ -120,19 +120,27 @@ function spawnCar(car) {
     emitNet("test", 'carHash', carHash);
 
     RequestModel(carHash);
+
+    loadModel(carHash, function () {
+        const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
+        emitNet("test", 'pos', pos);
+
+        CreateVehicle(carHash, pos[0] + 3, pos[1] + 3, pos[2] + 1, 0, true, false);
+    });
+}
+
+function loadModel(carHash, callback) {
     let loaded = HasModelLoaded(carHash);
     emitNet("test", 'loaded', loaded);
 
-    while (loaded === false) {
-        loaded = HasModelLoaded(carHash);
-        emitNet("test", 'loaded', loaded);
+    if (loaded) {
+        callback();
+        return;
     }
-    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
-    emitNet("test", 'pos', pos);
-
-    CreateVehicle(carHash, pos[0] + 3, pos[1] + 3, pos[2] + 1, 0, true, false);
+    setTimeout(function () {
+        loadModel(carHash, callback);
+    }, 1000);
 }
-
 
 // enum ePedType
 // {
