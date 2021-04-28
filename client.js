@@ -24,8 +24,10 @@ on('onClientGameTypeStart', () => {
     playerID = GetPlayerIndex();
     playerName = GetPlayerName(playerID);
 
-    exports.spawnmanager.setAutoSpawn(true)
-    exports.spawnmanager.forceRespawn()
+    exports.spawnmanager.setAutoSpawn(true);
+    exports.spawnmanager.forceRespawn();
+
+    spawnCar('Bati');
 });
 
 
@@ -110,6 +112,17 @@ function getPedValue(pedID) {
     }
 
     return 1;
+}
+
+function spawnCar(car) {
+    const carHash = GetHashKey(car);
+    RequestModel(carHash);
+    let loaded = HasModelLoaded(carHash);
+    while (loaded === false) {
+        loaded = HasModelLoaded(carHash);
+    }
+    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
+    CreateVehicle(carHash, pos[0] + 3, pos[1] + 3, pos[2] + 1, 0, true, false);
 }
 
 
