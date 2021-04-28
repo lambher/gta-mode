@@ -23,30 +23,21 @@ on('onClientGameTypeStart', () => {
     });
     playerID = GetPlayerIndex();
     playerName = GetPlayerName(playerID);
-    if (clientID !== 0) {
-        emitNet("restartEvent", clientID);
-    }
-
 
     exports.spawnmanager.setAutoSpawn(true)
     exports.spawnmanager.forceRespawn()
 });
 
 
-onNet('killEvent', (killerID, pedID) => {
-    emitNet("killEvent", killerID, getPedValue(pedID));
-});
-
-
 onNet('scoreEvent', (score, value) => {
     emit('chat:addMessage', {
         args: [
-            `${playerName} earns ${value} and his score is ${score}`
+            `${playerName}:  +${value} score: ${score}`
         ]
     })
 
-    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true)
-    DrawDebugText(`score : ${score}`, pos[0], pos[1], pos[2], 0, 255, 0, 1)
+    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
+    DrawDebugText(`score : ${score}`, pos[0], pos[1], pos[2], 0, 255, 0, 0.5);
 })
 
 onNet('setClientID', (id) => {
@@ -83,7 +74,8 @@ function getNearbyPeds() {
 }
 
 function watchPeds() {
-    let pp = GetPlayerPed(GetPlayerIndex());
+    const pp = GetPlayerPed(GetPlayerIndex());
+    const vp = GetVehiclePedIsIn(PlayerPedId())
 
     const peds = getNearbyPeds();
 
@@ -93,12 +85,10 @@ function watchPeds() {
         if (pedKillerID !== 0) {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
-                if (pedKillerID === pp) {
+                if (pedKillerID === pp || pedKillerID == vp) {
                     emitNet("killEvent", clientID, getPedValue(pedID));
                 }
             }
-
-
         }
     });
 

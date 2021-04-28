@@ -29,17 +29,9 @@ onNet('test', (tag, value) => {
 
 });
 
-onNet('restartEvent', (playerID, value) => {
-    if (players[playerID] !== undefined) {
-        players[playerID].score = 0;
-    }
-});
-
-
-
-
-
-
 on('respawnPlayerPedEvent', (player, content) => {
     emitNet("setClientID", player, player);
+    if (players[player] !== undefined) {
+        players[player].score = 0;
+    }
 })
