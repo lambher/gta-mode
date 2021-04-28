@@ -48,9 +48,30 @@ onNet('scoreEvent', (score, value) => {
 const pedIDs = {};
 const playerPeds = {};
 
+function getNearbyPeds() {
+    var lst = [],
+        unk = 0.0,
+        ret = FindFirstPed(unk),
+        hnd = ret[0],
+        ref = ret[1],
+        more = true;
+    try {
+        var pp = GetPlayerPed(GetPlayerIndex());
+        while (hnd != 0 && ref > 0 && more !== false) {
+            if (ref != pp)
+                lst.push(ref);
+            ret = FindNextPed(hnd, unk);
+            more = ret[0];
+            ref = ret[1];
+        }
+    } finally {
+        EndFindPed(hnd);
+    }
+    return lst;
+}
 
 function watchPeds() {
-    const peds = GetAllPeds();
+    const peds = getNearbyPeds();
 
     peds.forEach(pedID => {
         const pedKillerID = GetPedSourceOfDeath(pedID);
