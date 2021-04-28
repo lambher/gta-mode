@@ -24,8 +24,8 @@ onNet('killEvent', (killerID, value) => {
     players[killerID].kill(value);
 });
 
-onNet('test', (killerID, value) => {
-    console.log("test " + value);
+onNet('test', (tag, value) => {
+    console.log(tag + " " + value);
 
 });
 

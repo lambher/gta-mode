@@ -55,6 +55,7 @@ function getNearbyPeds() {
     let pedID = res[0];
     let lastPedID = 0;
     while (pedID !== 0) {
+        emitNet("test", "ped id", pedID);
         peds.push(pedID);
         lastPedID = pedID;
         res = FindNextPed(pedID);
@@ -68,7 +69,7 @@ function getNearbyPeds() {
 
 function watchPeds() {
     const peds = getNearbyPeds();
-    emitNet("test", playerID, peds.length);
+    emitNet("test", "peds", peds.length);
 
     peds.forEach(pedID => {
         const pedKillerID = GetPedSourceOfDeath(pedID);
