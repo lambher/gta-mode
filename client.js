@@ -22,6 +22,8 @@ on('onClientGameTypeStart', () => {
     });
     playerID = GetPlayerIndex();
     playerName = GetPlayerName(playerID);
+    emitNet("test", "GetPlayerIndex", playerID);
+
     exports.spawnmanager.setAutoSpawn(true)
     exports.spawnmanager.forceRespawn()
 });
@@ -78,14 +80,12 @@ function watchPeds() {
     const peds = getNearbyPeds();
 
     peds.forEach(pedID => {
-        emitNet("test", "pedID", pedID);
         const pedKillerID = GetPedSourceOfDeath(pedID);
-        emitNet("test", "pedKillerID", pedKillerID);
 
         if (pedKillerID !== 0) {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
-                if (playerID === GetPlayerPed(killerID)) {
+                if (playerID === GetPlayerPed(pedKillerID)) {
                     emitNet("killEvent", playerID, getPedValue(pedID));
                 }
             }
