@@ -67,4 +67,5 @@ onNet('test', (tag, value) => {
 
 
 on('respawnPlayerPedEvent', (player, content) => {
+    emitNet("setClientID", player, player);
 })

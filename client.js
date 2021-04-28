@@ -3,6 +3,7 @@ const spawnPos = [686.245, 577.950, 130.461];
 
 let playerID;
 let playerName = "";
+let clientID = 0;
 
 on('onClientGameTypeStart', () => {
     exports.spawnmanager.setAutoSpawnCallback(() => {
@@ -47,6 +48,10 @@ onNet('scoreEvent', (score, value) => {
     })
 })
 
+onNet('setClientID', (id) => {
+    clientID = id;
+})
+
 const pedIDs = {};
 const playerPeds = {};
 
@@ -88,7 +93,7 @@ function watchPeds() {
             if (pedIDs[pedID] === undefined) {
                 pedIDs[pedID] = true;
                 if (pedKillerID === pp) {
-                    emitNet("killEvent", playerID, getPedValue(pedID));
+                    emitNet("killEvent", clientID, getPedValue(pedID));
                 }
             }
 
