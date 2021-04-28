@@ -38,8 +38,8 @@ onNet('scoreEvent', (score, value) => {
         ]
     })
 
-    const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
-    DrawDebugText(`score : ${score}`, pos[0], pos[1], pos[2], 0, 255, 0, 0.5);
+    const pos = GetEntityCoords(GetPlayerPed(-1), false);
+    DrawDebugText(`score : ${score}`, pos[0], pos[1], pos[2] + 1, 0, 255, 0, 0.5);
 })
 
 onNet('setClientID', (id) => {
@@ -122,7 +122,7 @@ function spawnCar(car) {
     RequestModel(carHash);
 
     loadModel(carHash, function () {
-        const pos = GetEntityCoords(GetPlayerPed(GetPlayerIndex()), true);
+        const pos = GetEntityCoords(GetPlayerPed(-1), false);
         emitNet("test", 'pos', pos);
 
         CreateVehicle(carHash, pos[0] + 3, pos[1] + 3, pos[2] + 1, 0, true, false);
