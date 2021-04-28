@@ -12,7 +12,7 @@ on('onClientGameTypeStart', () => {
             y: spawnPos[1],
             z: spawnPos[2],
             // model: 'a_m_m_skater_01'
-            model: 'a_m_m_hasjew_01'
+            model: 'a_c_rat'
         }, () => {
             emit('chat:addMessage', {
                 args: [
