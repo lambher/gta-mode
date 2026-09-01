@@ -2,9 +2,11 @@ const {
     CATEGORY,
     SPAWN,
     MONEY,
+    DEATH,
+    MOMENTUM,
     SHOP,
+    SHOP_CATEGORIES,
     formatAmount,
-    WEAPON_CATEGORIES,
     PED_TYPE_CATEGORY,
     PED_MODEL_CATEGORY,
     VEHICLE_MODEL_CATEGORY,
@@ -24,6 +26,14 @@ let leaderboard = [];
 let feed = [];
 let ownedWeapons = new Set();
 let walletHideAt = 0;
+let bloodstains = [];
+let momentum = { streak: 0, multiplier: 1, expiresAt: 0 };
+
+// Death and damage are only visible from here, so this client tells the server
+// about its own ped: when it dies, and when it takes a hit.
+let wasDead = false;
+let lastVitality = 0;
+const blips = new Map(); // owner id -> blip handle
 
 // Entities we already made a decision about, so a corpse lying around is never
 // counted twice. Handles get recycled by the engine, hence the pruning below.
@@ -96,6 +106,20 @@ onNet('gtamode:giveLoadout', (loadout) => {
     for (const item of loadout) {
         GiveWeaponToPed(playerPed, GetHashKey(item.weapon), item.ammo, false, false);
     }
+});
+
+onNet('gtamode:armour', (value) => {
+    SetPedArmour(PlayerPedId(), value);
+    PlaySoundFrontend(-1, 'PURCHASE', 'HUD_LIQUOR_STORE_SOUNDSET', false);
+});
+
+onNet('gtamode:momentum', (streak, multiplier, expiresAt) => {
+    momentum = { streak, multiplier, expiresAt };
+});
+
+onNet('gtamode:bloodstains', (stains) => {
+    bloodstains = stains;
+    refreshBloodstainBlips();
 });
 
 onNet('gtamode:shopDenied', (reason) => {
@@ -232,8 +256,33 @@ function prune() {
     }
 }
 
+// The streak is the server's to keep, but only this client can see the ped
+// get hit, so it reports the hit rather than the new streak.
+function watchVitality(playerPed) {
+    const vitality = GetEntityHealth(playerPed) + GetPedArmour(playerPed);
+
+    if (lastVitality && vitality < lastVitality && momentum.streak > 0) {
+        emitNet('gtamode:hurt');
+    }
+    lastVitality = vitality;
+}
+
+function watchDeath(playerPed) {
+    const dead = IsEntityDead(playerPed);
+
+    if (dead && !wasDead) {
+        const pos = GetEntityCoords(playerPed, false);
+        emitNet('gtamode:died', pos[0], pos[1], pos[2]);
+        lastVitality = 0;
+    }
+    wasDead = dead;
+}
+
 function scan() {
     const playerPed = PlayerPedId();
+
+    watchDeath(playerPed);
+    watchVitality(playerPed);
 
     const vehicle = GetVehiclePedIsIn(playerPed, false);
     if (vehicle) {
@@ -251,6 +300,71 @@ function scan() {
 setTimeout(scan, SCAN_INTERVAL);
 
 // ---------------------------------------------------------------------------
+// Taches de sang
+// ---------------------------------------------------------------------------
+
+// Your own money is marked on the map so you can go back for it. Someone
+// else's is not: you have to remember where you killed them.
+function refreshBloodstainBlips() {
+    const mine = new Set(bloodstains.filter((stain) => stain.owner === clientId()).map((s2) => s2.owner));
+
+    for (const [owner, blip] of blips) {
+        if (!mine.has(owner)) {
+            RemoveBlip(blip);
+            blips.delete(owner);
+        }
+    }
+
+    for (const stain of bloodstains) {
+        if (!mine.has(stain.owner) || blips.has(stain.owner)) {
+            continue;
+        }
+        const blip = AddBlipForCoord(stain.x, stain.y, stain.z);
+        SetBlipSprite(blip, 434);
+        SetBlipColour(blip, 1);
+        SetBlipScale(blip, 0.9);
+        BeginTextCommandSetBlipName('STRING');
+        AddTextComponentString('Ton magot');
+        EndTextCommandSetBlipName(blip);
+        blips.set(stain.owner, blip);
+    }
+}
+
+function clientId() {
+    return GetPlayerServerId(PlayerId());
+}
+
+function drawBloodstains(playerPed) {
+    const pos = GetEntityCoords(playerPed, false);
+
+    for (const stain of bloodstains) {
+        const distance = Math.hypot(pos[0] - stain.x, pos[1] - stain.y, pos[2] - stain.z);
+        if (distance > 120) {
+            continue;
+        }
+
+        const mine = stain.owner === clientId();
+        const colour = mine ? [255, 200, 60] : [200, 40, 40];
+        DrawMarker(1, stain.x, stain.y, stain.z - 0.95, 0, 0, 0, 0, 0, 0, 1.4, 1.4, 0.6,
+            colour[0], colour[1], colour[2], 130, false, false, 2, false, null, null, false);
+
+        if (distance < 18) {
+            drawText3D(`${formatAmount(stain.amount)}`, stain.x, stain.y, stain.z + 0.4, [255, 255, 255, 255]);
+        }
+
+        if (distance < DEATH.pickupRadius && !IsEntityDead(playerPed)) {
+            emitNet('gtamode:collect', stain.owner);
+            // The server broadcasts the new list; drop it here too so a slow
+            // round trip cannot send the pickup twice.
+            bloodstains = bloodstains.filter((other) => other.owner !== stain.owner);
+            refreshBloodstainBlips();
+            PlaySoundFrontend(-1, 'PICK_UP', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+            return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Armurerie
 // ---------------------------------------------------------------------------
 
@@ -266,11 +380,11 @@ let itemIndex = 0;
 let shopMessage = null;
 
 function currentCategory() {
-    return WEAPON_CATEGORIES[categoryIndex];
+    return SHOP_CATEGORIES[categoryIndex];
 }
 
-function currentWeapon() {
-    return currentCategory().weapons[itemIndex];
+function currentItem() {
+    return currentCategory().items[itemIndex];
 }
 
 function isChased() {
@@ -294,28 +408,38 @@ RegisterCommand('armurerie', () => toggleShop(), false);
 RegisterKeyMapping('armurerie', 'Ouvrir l\'armurerie', 'keyboard', 'B');
 
 function moveCategory(step) {
-    categoryIndex = (categoryIndex + step + WEAPON_CATEGORIES.length) % WEAPON_CATEGORIES.length;
+    categoryIndex = (categoryIndex + step + SHOP_CATEGORIES.length) % SHOP_CATEGORIES.length;
     itemIndex = 0;
     PlaySoundFrontend(-1, 'NAV_LEFT_RIGHT', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
 }
 
 function moveItem(step) {
-    const count = currentCategory().weapons.length;
+    const count = currentCategory().items.length;
     itemIndex = (itemIndex + step + count) % count;
     PlaySoundFrontend(-1, 'NAV_UP_DOWN', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
 }
 
+function refuse(message) {
+    setShopMessage(message, [255, 100, 100, 255]);
+    PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+}
+
 function buySelected() {
-    const weapon = currentWeapon();
+    const item = currentItem();
 
     // The server checks this again; doing it here keeps the refusal instant.
     if (isChased()) {
-        setShopMessage('Impossible en course-poursuite : sème la police d\'abord.', [255, 100, 100, 255]);
-        PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+        refuse('Impossible en course-poursuite : sème la police d\'abord.');
         return;
     }
 
-    emitNet('gtamode:buy', weapon.name);
+    // Only this client knows how much armour the ped is already wearing.
+    if (item.armour && GetPedArmour(PlayerPedId()) >= item.armour) {
+        refuse(`${item.label} : tu portes déjà au moins aussi bien.`);
+        return;
+    }
+
+    emitNet('gtamode:buy', item.name);
 }
 
 function handleShopInput() {
@@ -347,28 +471,32 @@ function handleShopInput() {
 
 // What a row offers right now: a purchase, an ammo refill, or nothing left to
 // buy for a melee weapon already owned.
-function offerFor(weapon) {
-    const owned = ownedWeapons.has(weapon.name);
-
-    if (!owned) {
-        return { owned: false, price: weapon.price, text: formatAmount(weapon.price) };
+function offerFor(item) {
+    // Armour is consumed, so it is always on sale at full price.
+    if (item.armour) {
+        return { owned: false, price: item.price, text: formatAmount(item.price) };
     }
-    if (weapon.ammo <= 1) {
+
+    const owned = ownedWeapons.has(item.name);
+    if (!owned) {
+        return { owned: false, price: item.price, text: formatAmount(item.price) };
+    }
+    if (item.ammo <= 1) {
         return { owned: true, price: 0, text: 'POSSÉDÉ' };
     }
 
-    const price = priceFor(weapon.name, true);
+    const price = priceFor(item.name, true);
     return { owned: true, price, text: `${formatAmount(price)} (munitions)` };
 }
 
 function drawShop() {
     const category = currentCategory();
-    const weapons = category.weapons;
+    const items = category.items;
     const chased = isChased();
 
     // Keep the selected row inside the visible window.
-    const scrollTop = Math.max(0, Math.min(itemIndex - SHOP_ROWS + 1, weapons.length - SHOP_ROWS));
-    const visible = weapons.slice(scrollTop, scrollTop + SHOP_ROWS);
+    const scrollTop = Math.max(0, Math.min(itemIndex - SHOP_ROWS + 1, items.length - SHOP_ROWS));
+    const visible = items.slice(scrollTop, scrollTop + SHOP_ROWS);
 
     const headerY = 0.20;
     const listY = 0.285;
@@ -383,11 +511,11 @@ function drawShop() {
 
     DrawRect(0.5, listY + bodyHeight / 2 - ROW_HEIGHT / 2, SHOP_WIDTH, bodyHeight, 0, 0, 0, 190);
 
-    visible.forEach((weapon, row) => {
+    visible.forEach((item, row) => {
         const index = scrollTop + row;
         const y = listY + row * ROW_HEIGHT - ROW_HEIGHT / 2;
         const selected = index === itemIndex;
-        const offer = offerFor(weapon);
+        const offer = offerFor(item);
         const affordable = score >= offer.price;
 
         if (selected) {
@@ -405,7 +533,7 @@ function drawShop() {
             colour = [140, 140, 140, 220];
         }
 
-        drawText(weapon.label, SHOP_LEFT + 0.012, y, 0.36, 1, colour);
+        drawText(item.label, SHOP_LEFT + 0.012, y, 0.36, 1, colour);
         drawText(offer.text, SHOP_RIGHT - 0.012, y, 0.36, 2, colour);
     });
 
@@ -471,6 +599,43 @@ function drawText(text, x, y, scale, justification, colour) {
     DrawText(x, y);
 }
 
+function drawText3D(text, x, y, z, colour) {
+    SetDrawOrigin(x, y, z, 0);
+    SetTextFont(4);
+    SetTextScale(0.4, 0.4);
+    SetTextColour(colour[0], colour[1], colour[2], colour[3]);
+    SetTextDropShadow();
+    SetTextOutline();
+    SetTextCentre(true);
+    SetTextEntry('STRING');
+    AddTextComponentString(text);
+    DrawText(0, 0);
+    ClearDrawOrigin();
+}
+
+// The bar drains over the window left to land the next kill, so the pressure
+// is visible rather than guessed at.
+function drawMomentum() {
+    if (momentum.multiplier <= 1) {
+        return;
+    }
+
+    const remaining = momentum.expiresAt - Date.now();
+    if (remaining <= 0) {
+        return;
+    }
+
+    const ratio = Math.max(0, Math.min(1, remaining / MOMENTUM.window));
+    const width = 0.17;
+    const left = 0.905 - width / 2;
+
+    DrawRect(0.905, 0.108, width, 0.03, 0, 0, 0, 160);
+    DrawRect(left + (width * ratio) / 2, 0.118, width * ratio, 0.006, 255, 190, 60, 240);
+
+    drawText(`x${momentum.multiplier}`, left + 0.008, 0.096, 0.42, 1, [255, 190, 60, 255]);
+    drawText(`${momentum.streak} d'affilée`, 0.985, 0.099, 0.30, 2, [220, 220, 220, 230]);
+}
+
 function drawScorePanel() {
     DrawRect(0.905, 0.055, 0.17, 0.07, 0, 0, 0, 140);
     drawText(MONEY.enabled ? 'MAGOT' : 'SCORE', 0.985, 0.025, 0.32, 2, [200, 200, 200, 220]);
@@ -482,7 +647,7 @@ function drawFeed() {
     feed = feed.filter((line) => line.expiresAt > now);
 
     feed.forEach((line, index) => {
-        drawText(line.text, 0.985, 0.105 + index * 0.028, 0.38, 2, line.colour);
+        drawText(line.text, 0.985, 0.145 + index * 0.028, 0.38, 2, line.colour);
     });
 }
 
@@ -509,8 +674,12 @@ setTick(() => {
         walletHideAt = 0;
     }
 
+    const playerPed = PlayerPedId();
+
     drawScorePanel();
+    drawMomentum();
     drawFeed();
+    drawBloodstains(playerPed);
 
     if (shopOpen) {
         handleShopInput();

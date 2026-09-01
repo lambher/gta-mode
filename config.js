@@ -40,8 +40,45 @@ const MONEY = {
     symbol: '$',
 };
 
-// Set to true for an arcade round where dying wipes your score.
-const RESET_SCORE_ON_DEATH = false;
+// Ce qui arrive à l'argent quand on meurt.
+//   'bloodstain' : il tombe sur place, à récupérer en revenant le chercher.
+//                  N'importe qui peut le ramasser : tuer quelqu'un, c'est
+//                  pouvoir prendre sa thune.
+//   'keep'       : on garde tout, la mort ne coûte rien.
+//   'wipe'       : tout est perdu.
+// Les armes achetées ne tombent jamais : dépenser, c'est mettre à l'abri.
+const DEATH = {
+    mode: 'bloodstain',
+    // Fraction de l'argent qui tombe. 1 = tout.
+    dropRatio: 1,
+    // Distance à laquelle on ramasse une tache, en mètres.
+    pickupRadius: 2.5,
+};
+
+// La série. Elle monte à chaque kill enchaîné, retombe après un silence, et
+// casse net dès qu'on se prend un coup.
+const MOMENTUM = {
+    // Délai maximum entre deux kills pour garder la série, en ms.
+    window: 10000,
+    // Multiplicateur atteint à partir de N kills d'affilée.
+    tiers: [
+        { kills: 3, multiplier: 1.5 },
+        { kills: 6, multiplier: 2 },
+        { kills: 10, multiplier: 3 },
+        { kills: 15, multiplier: 4 },
+        { kills: 20, multiplier: 5 },
+    ],
+};
+
+function multiplierFor(streak) {
+    let multiplier = 1;
+    for (const tier of MOMENTUM.tiers) {
+        if (streak >= tier.kills) {
+            multiplier = tier.multiplier;
+        }
+    }
+    return multiplier;
+}
 
 // ePedType -> category. The full enum is at the bottom of this file.
 const PED_TYPE_CATEGORY = {
@@ -163,11 +200,11 @@ const SHOP = {
 //   explosives     army income (2000 pts a soldier, 20 000 pts a tank)
 // You literally have to raise the police response to afford the gear needed to
 // survive it.
-const WEAPON_CATEGORIES = [
+const SHOP_CATEGORIES = [
     {
         id: 'melee',
         label: 'Corps à corps',
-        weapons: [
+        items: [
             { name: 'WEAPON_KNUCKLE', label: 'Poing américain', price: 50, ammo: 1 },
             { name: 'WEAPON_KNIFE', label: 'Couteau', price: 75, ammo: 1 },
             { name: 'WEAPON_BAT', label: 'Batte de baseball', price: 75, ammo: 1 },
@@ -178,7 +215,7 @@ const WEAPON_CATEGORIES = [
     {
         id: 'pistol',
         label: 'Pistolets',
-        weapons: [
+        items: [
             { name: 'WEAPON_PISTOL', label: 'Pistolet', price: 250, ammo: 100 },
             { name: 'WEAPON_SNSPISTOL', label: 'Pistolet SNS', price: 350, ammo: 100 },
             { name: 'WEAPON_COMBATPISTOL', label: 'Pistolet de combat', price: 500, ammo: 120 },
@@ -190,7 +227,7 @@ const WEAPON_CATEGORIES = [
     {
         id: 'smg',
         label: 'Mitraillettes / Fusils à pompe',
-        weapons: [
+        items: [
             { name: 'WEAPON_MICROSMG', label: 'Micro-SMG', price: 1500, ammo: 250 },
             { name: 'WEAPON_SAWNOFFSHOTGUN', label: 'Fusil à canon scié', price: 1800, ammo: 60 },
             { name: 'WEAPON_SMG', label: 'SMG', price: 2500, ammo: 300 },
@@ -202,7 +239,7 @@ const WEAPON_CATEGORIES = [
     {
         id: 'rifle',
         label: 'Fusils d\'assaut',
-        weapons: [
+        items: [
             { name: 'WEAPON_ASSAULTRIFLE', label: 'Fusil d\'assaut', price: 6000, ammo: 400 },
             { name: 'WEAPON_CARBINERIFLE', label: 'Carabine d\'assaut', price: 8000, ammo: 400 },
             { name: 'WEAPON_BULLPUPRIFLE', label: 'Fusil bullpup', price: 9000, ammo: 400 },
@@ -213,7 +250,7 @@ const WEAPON_CATEGORIES = [
     {
         id: 'heavy',
         label: 'Précision / Mitrailleuses',
-        weapons: [
+        items: [
             { name: 'WEAPON_SNIPERRIFLE', label: 'Fusil de précision', price: 15000, ammo: 50 },
             { name: 'WEAPON_MG', label: 'Mitrailleuse', price: 18000, ammo: 500 },
             { name: 'WEAPON_MARKSMANRIFLE', label: 'Fusil de tireur d\'élite', price: 22000, ammo: 80 },
@@ -222,9 +259,17 @@ const WEAPON_CATEGORIES = [
         ],
     },
     {
+        id: 'gear',
+        label: 'Équipement',
+        items: [
+            { name: 'ARMOUR_LIGHT', label: 'Gilet pare-balles', price: 2000, armour: 50 },
+            { name: 'ARMOUR_HEAVY', label: 'Gilet lourd', price: 5000, armour: 100 },
+        ],
+    },
+    {
         id: 'explosive',
         label: 'Explosifs',
-        weapons: [
+        items: [
             { name: 'WEAPON_MOLOTOV', label: 'Cocktail Molotov (x5)', price: 2000, ammo: 5 },
             { name: 'WEAPON_GRENADE', label: 'Grenade (x5)', price: 3500, ammo: 5 },
             { name: 'WEAPON_STICKYBOMB', label: 'Bombe collante (x5)', price: 6000, ammo: 5 },
@@ -237,27 +282,33 @@ const WEAPON_CATEGORIES = [
     },
 ];
 
-const WEAPONS = {};
-for (const category of WEAPON_CATEGORIES) {
-    for (const weapon of category.weapons) {
-        WEAPONS[weapon.name] = weapon;
+const CATALOG = {};
+for (const category of SHOP_CATEGORIES) {
+    for (const item of category.items) {
+        CATALOG[item.name] = item;
     }
 }
 
-// What buying this weapon costs right now: full price the first time, an ammo
+// Armour is consumed, so it is bought at full price every time and never
+// counts as owned.
+function isConsumable(item) {
+    return Boolean(item && item.armour);
+}
+
+// What buying this entry costs right now: full price the first time, an ammo
 // refill afterwards. Melee weapons have no ammo, so they are never re-sold.
-function priceFor(weaponName, owned) {
-    const weapon = WEAPONS[weaponName];
-    if (!weapon) {
+function priceFor(itemName, owned) {
+    const item = CATALOG[itemName];
+    if (!item) {
         return 0;
     }
-    if (!owned) {
-        return weapon.price;
+    if (!owned || isConsumable(item)) {
+        return item.price;
     }
-    if (weapon.ammo <= 1) {
+    if (item.ammo <= 1) {
         return 0;
     }
-    return Math.ceil(weapon.price * SHOP.refillRatio);
+    return Math.ceil(item.price * SHOP.refillRatio);
 }
 
 // The single source of truth for a reward. Returns 0 for anything unknown,
@@ -276,11 +327,14 @@ globalThis.GameMode = {
     LABELS,
     SPAWN,
     MONEY,
+    DEATH,
+    MOMENTUM,
     SHOP,
-    WEAPON_CATEGORIES,
-    WEAPONS,
+    SHOP_CATEGORIES,
+    CATALOG,
+    isConsumable,
+    multiplierFor,
     priceFor,
-    RESET_SCORE_ON_DEATH,
     PED_TYPE_CATEGORY,
     PED_MODEL_CATEGORY,
     VEHICLE_MODEL_CATEGORY,

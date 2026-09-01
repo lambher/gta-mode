@@ -1,9 +1,12 @@
 const {
     LABELS,
-    formatAmount,
-    RESET_SCORE_ON_DEATH,
+    DEATH,
+    MOMENTUM,
     SHOP,
-    WEAPONS,
+    CATALOG,
+    formatAmount,
+    isConsumable,
+    multiplierFor,
     priceFor,
     scoreFor,
 } = globalThis.GameMode;
@@ -12,6 +15,9 @@ const {
 const LEADERBOARD_SIZE = 10;
 
 const players = new Map();
+// One bloodstain per player: dying again forfeits the previous one, as in the
+// game this is borrowed from.
+const bloodstains = new Map(); // owner id -> { owner, name, amount, x, y, z }
 
 class Player {
     constructor(id) {
@@ -20,6 +26,33 @@ class Player {
         this.score = 0;
         this.kills = 0;
         this.weapons = new Map(); // WEAPON_* -> ammo granted
+        this.streak = 0;
+        this.streakExpiresAt = 0;
+    }
+
+    // A kill inside the window extends the streak, anything later starts over.
+    extendStreak() {
+        const now = Date.now();
+        this.streak = now > this.streakExpiresAt ? 1 : this.streak + 1;
+        this.streakExpiresAt = now + MOMENTUM.window;
+        this.syncMomentum();
+    }
+
+    breakStreak() {
+        if (!this.streak) {
+            return;
+        }
+        this.streak = 0;
+        this.streakExpiresAt = 0;
+        this.syncMomentum();
+    }
+
+    get multiplier() {
+        return Date.now() > this.streakExpiresAt ? 1 : multiplierFor(this.streak);
+    }
+
+    syncMomentum() {
+        emitNet('gtamode:momentum', this.id, this.streak, this.multiplier, this.streakExpiresAt);
     }
 
     credit(value, text) {
@@ -66,6 +99,25 @@ function broadcastLeaderboard() {
     emitNet('gtamode:leaderboard', -1, leaderboard());
 }
 
+function broadcastBloodstains() {
+    emitNet('gtamode:bloodstains', -1, [...bloodstains.values()]);
+}
+
+// Read the player's position server side so a client cannot claim to be
+// standing on a bloodstain it is nowhere near. Older builds do not expose the
+// natives, in which case we fall back on what the client reports.
+function positionOf(id, fallback) {
+    if (typeof GetPlayerPed !== 'function' || typeof GetEntityCoords !== 'function') {
+        return fallback;
+    }
+    try {
+        const coords = GetEntityCoords(GetPlayerPed(id));
+        return coords && coords.length === 3 ? coords : fallback;
+    } catch (error) {
+        return fallback;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Kills
 // ---------------------------------------------------------------------------
@@ -74,15 +126,74 @@ function broadcastLeaderboard() {
 // the shared table, so a tampered client cannot hand itself a score.
 onNet('gtamode:kill', (category, kind) => {
     const id = global.source;
-    const value = scoreFor(category, kind);
+    const base = scoreFor(category, kind);
 
-    if (!value) {
+    if (!base) {
         console.log(`[gta-mode] kill rejeté de ${id}: ${category}/${kind}`);
         return;
     }
 
+    const player = getPlayer(id);
+    player.extendStreak();
+
+    const multiplier = player.multiplier;
+    const value = Math.round(base * multiplier);
     const text = `${LABELS[category]}${kind === 'vehicle' ? ' (véhicule)' : ''}`;
-    getPlayer(id).credit(value, text);
+
+    player.credit(value, multiplier > 1 ? `${text}  x${multiplier}` : text);
+    broadcastLeaderboard();
+});
+
+// Taking a hit costs the streak, which is the whole point of it.
+onNet('gtamode:hurt', () => {
+    getPlayer(global.source).breakStreak();
+});
+
+// ---------------------------------------------------------------------------
+// Mort et taches de sang
+// ---------------------------------------------------------------------------
+
+onNet('gtamode:died', (x, y, z) => {
+    const id = global.source;
+    const player = getPlayer(id);
+
+    player.breakStreak();
+
+    if (DEATH.mode === 'keep' || player.score <= 0) {
+        return;
+    }
+
+    const dropped = Math.floor(player.score * DEATH.dropRatio);
+    player.debit(dropped, DEATH.mode === 'wipe' ? 'Mort' : 'Tombé au sol');
+
+    if (DEATH.mode !== 'bloodstain' || dropped <= 0) {
+        return;
+    }
+
+    const [px, py, pz] = positionOf(id, [x, y, z]);
+    bloodstains.set(id, { owner: id, name: player.name, amount: dropped, x: px, y: py, z: pz });
+    broadcastBloodstains();
+});
+
+onNet('gtamode:collect', (owner) => {
+    const id = global.source;
+    const stain = bloodstains.get(owner);
+    if (!stain) {
+        return;
+    }
+
+    const [px, py, pz] = positionOf(id, [stain.x, stain.y, stain.z]);
+    const distance = Math.hypot(px - stain.x, py - stain.y, pz - stain.z);
+    if (distance > DEATH.pickupRadius * 2) {
+        console.log(`[gta-mode] ramassage rejeté de ${id}: ${Math.round(distance)}m de la tache`);
+        return;
+    }
+
+    bloodstains.delete(owner);
+    broadcastBloodstains();
+
+    const player = getPlayer(id);
+    player.credit(stain.amount, owner === id ? 'Ton magot' : `Magot de ${stain.name}`);
     broadcastLeaderboard();
 });
 
@@ -108,13 +219,13 @@ function deny(id, reason) {
     emitNet('gtamode:shopDenied', id, reason);
 }
 
-onNet('gtamode:buy', (weaponName) => {
+onNet('gtamode:buy', (itemName) => {
     const id = global.source;
     const player = getPlayer(id);
-    const weapon = WEAPONS[weaponName];
+    const item = CATALOG[itemName];
 
-    if (!weapon) {
-        console.log(`[gta-mode] achat rejeté de ${id}: ${weaponName}`);
+    if (!item) {
+        console.log(`[gta-mode] achat rejeté de ${id}: ${itemName}`);
         return;
     }
 
@@ -123,23 +234,28 @@ onNet('gtamode:buy', (weaponName) => {
         return;
     }
 
-    const owned = player.weapons.has(weaponName);
-    if (owned && weapon.ammo <= 1) {
-        deny(id, `${weapon.label} : déjà en ta possession.`);
+    const owned = player.weapons.has(itemName);
+    if (owned && !isConsumable(item) && item.ammo <= 1) {
+        deny(id, `${item.label} : déjà en ta possession.`);
         return;
     }
 
-    const price = priceFor(weaponName, owned);
+    const price = priceFor(itemName, owned);
     if (player.score < price) {
-        deny(id, `${weapon.label} : il te manque ${formatAmount(price - player.score)}.`);
+        deny(id, `${item.label} : il te manque ${formatAmount(price - player.score)}.`);
         return;
     }
 
-    player.weapons.set(weaponName, weapon.ammo);
-    player.debit(price, owned ? `Munitions ${weapon.label}` : weapon.label);
+    player.debit(price, owned && !isConsumable(item) ? `Munitions ${item.label}` : item.label);
 
-    emitNet('gtamode:grant', id, weaponName, weapon.ammo, owned);
-    emitNet('gtamode:inventory', id, [...player.weapons.keys()]);
+    if (isConsumable(item)) {
+        emitNet('gtamode:armour', id, item.armour);
+    } else {
+        player.weapons.set(itemName, item.ammo);
+        emitNet('gtamode:grant', id, itemName, item.ammo, owned);
+        emitNet('gtamode:inventory', id, [...player.weapons.keys()]);
+    }
+
     broadcastLeaderboard();
 });
 
@@ -153,6 +269,8 @@ on('playerJoining', () => {
 });
 
 on('playerDropped', () => {
+    // The bloodstain stays: someone who quits after being killed still leaves
+    // their money on the ground.
     players.delete(global.source);
     broadcastLeaderboard();
 });
@@ -162,17 +280,13 @@ on('respawnPlayerPedEvent', (id) => {
     // The name is not always available yet when the player joins.
     player.name = GetPlayerName(id) || player.name;
 
-    if (RESET_SCORE_ON_DEATH) {
-        player.score = 0;
-        player.kills = 0;
-        player.weapons.clear();
-    }
-
-    // Resync the freshly spawned ped: score, owned weapons, and the weapons
+    // Resync the freshly spawned ped: money, owned weapons, and the weapons
     // themselves since a new ped spawns empty handed.
     player.syncScore(0, null);
+    player.syncMomentum();
     emitNet('gtamode:inventory', id, [...player.weapons.keys()]);
     emitNet('gtamode:giveLoadout', id, player.loadout());
     emitNet('gtamode:leaderboard', id, leaderboard());
+    emitNet('gtamode:bloodstains', id, [...bloodstains.values()]);
     broadcastLeaderboard();
 });

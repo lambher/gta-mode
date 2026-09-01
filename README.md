@@ -66,15 +66,62 @@ y survivre.
 | Fusils d'assaut | 6 000 – 12 000 | 6 à 12 GIGN |
 | Précision / mitrailleuses | 15 000 – 35 000 | 2 à 4 véhicules GIGN |
 | Explosifs lourds | 50 000 – 250 000 | 1 à 13 véhicules militaires |
+| Gilets | 2 000 – 5 000 | consommables, plein tarif à chaque fois |
 
 Les grenades, molotovs et bombes collantes sont vendus par lots de 5 et restent
 accessibles tôt (2 000 – 6 000).
 
-### Munitions et mort
+Les gilets sont des consommables : plein tarif à chaque fois, jamais « possédé ».
+
+### Munitions
 
 Une arme achetée est acquise pour la session. La racheter ne coûte que **20 %
 du prix** et ne fait que recharger les munitions. À la mort, le ped réapparaît
 les mains vides : le serveur lui rend tout son arsenal, munitions pleines.
+
+## La mort : le magot tombe au sol
+
+Mourir fait tomber tout ton argent **à l'endroit exact où tu es tombé**. Il
+faut y retourner pour le récupérer — et **n'importe qui peut le ramasser**, donc
+tuer quelqu'un c'est pouvoir prendre sa thune.
+
+Une seule tache par joueur : mourir une seconde fois avant d'avoir récupéré la
+première la fait disparaître pour de bon.
+
+Ta tache est repérée sur la carte. Celle des autres, non : il faut te souvenir
+d'où tu les as tués. Les deux sont visibles au sol à moins de 120 m.
+
+Les **armes ne tombent jamais**. Dépenser, c'est donc mettre à l'abri : c'est
+le seul moyen de transformer un magot en quelque chose que la mort ne prend
+pas.
+
+Le ramassage est vérifié côté serveur, qui lit lui-même la position du joueur —
+un client ne peut pas se téléporter la thune d'en face.
+
+`DEATH.mode` dans `config.js` : `'bloodstain'` (défaut), `'keep'` (la mort ne
+coûte rien) ou `'wipe'` (tout est perdu, sans retour possible).
+
+## La série
+
+Les kills enchaînés à moins de 10 secondes d'intervalle font monter un
+multiplicateur :
+
+| Série | Multiplicateur |
+| ---: | ---: |
+| 3 | x1,5 |
+| 6 | x2 |
+| 10 | x3 |
+| 15 | x4 |
+| 20 | x5 |
+
+Elle retombe après 10 secondes sans kill, et **casse net dès que tu prends un
+coup** — balle, explosion, chute, tôle froissée. Un carnage propre rapporte
+beaucoup plus qu'un carnage subi, et ça redonne un intérêt au civil à 1 point.
+
+La barre en haut à droite montre le temps qu'il reste pour placer le suivant.
+
+Le serveur tient le compte, mais seul le client voit son ped se faire toucher :
+il signale le coup, le serveur casse la série.
 
 ## Déploiement
 
@@ -180,11 +227,10 @@ Tout est dans `config.js` :
 
 - `SCORES` — la table ci-dessus.
 - `SPAWN` — position, modèle du joueur, véhicule offert au spawn.
-- `RESET_SCORE_ON_DEATH` — `false` par défaut (le score se cumule sur la
-  session) ; passer à `true` pour une manche arcade où mourir remet à zéro
-  (score *et* arsenal).
-- `WEAPON_CATEGORIES` — le catalogue de l'armurerie : catégories, prix,
-  munitions livrées.
+- `DEATH` — ce que coûte la mort, et le rayon de ramassage d'une tache.
+- `MOMENTUM` — la fenêtre de la série et ses paliers de multiplicateur.
+- `SHOP_CATEGORIES` — le catalogue de l'armurerie : catégories, prix,
+  munitions livrées, gilets.
 - `SHOP.maxWantedLevel` — le nombre d'étoiles toléré pour acheter (0).
 - `SHOP.refillRatio` — le prix d'une recharge, en fraction du prix de l'arme.
 - `PED_MODELS` / `VEHICLE_MODELS` — pour ajouter des modèles, y compris des
@@ -192,5 +238,6 @@ Tout est dans `config.js` :
 
 ## HUD
 
-Le score s'affiche en haut à droite, avec un fil des derniers gains et
-dépenses. Maintenir **Z** affiche le classement, **B** ouvre l'armurerie.
+Le magot s'affiche en haut à droite, avec la barre de série en dessous et un
+fil des derniers gains et dépenses. Maintenir **Z** affiche le classement,
+**B** ouvre l'armurerie.
