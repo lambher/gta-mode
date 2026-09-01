@@ -1,7 +1,9 @@
 const {
     CATEGORY,
     SPAWN,
+    MONEY,
     SHOP,
+    formatAmount,
     WEAPON_CATEGORIES,
     PED_TYPE_CATEGORY,
     PED_MODEL_CATEGORY,
@@ -21,6 +23,7 @@ let score = 0;
 let leaderboard = [];
 let feed = [];
 let ownedWeapons = new Set();
+let walletHideAt = 0;
 
 // Entities we already made a decision about, so a corpse lying around is never
 // counted twice. Handles get recycled by the engine, hence the pruning below.
@@ -56,12 +59,13 @@ on('onClientGameTypeStart', () => {
 
 onNet('gtamode:score', (total, delta, text) => {
     score = total;
+    syncMoneyHud(delta);
 
     // A resync after respawn carries no transaction, so it gets no feed line.
     if (delta > 0) {
-        pushFeed(`+${formatNumber(delta)}  ${text}`, [120, 255, 120, 230]);
+        pushFeed(`+${formatAmount(delta)}  ${text}`, [120, 255, 120, 230]);
     } else if (delta < 0) {
-        pushFeed(`-${formatNumber(-delta)}  ${text}`, [255, 180, 90, 230]);
+        pushFeed(`-${formatAmount(-delta)}  ${text}`, [255, 180, 90, 230]);
     }
 });
 
@@ -281,6 +285,7 @@ function toggleShop() {
     shopOpen = !shopOpen;
     if (shopOpen) {
         shopMessage = null;
+        flashWallet();
         PlaySoundFrontend(-1, 'SELECT', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
     }
 }
@@ -346,14 +351,14 @@ function offerFor(weapon) {
     const owned = ownedWeapons.has(weapon.name);
 
     if (!owned) {
-        return { owned: false, price: weapon.price, text: `${formatNumber(weapon.price)} pts` };
+        return { owned: false, price: weapon.price, text: formatAmount(weapon.price) };
     }
     if (weapon.ammo <= 1) {
         return { owned: true, price: 0, text: 'POSSÉDÉ' };
     }
 
     const price = priceFor(weapon.name, true);
-    return { owned: true, price, text: `${formatNumber(price)} pts (munitions)` };
+    return { owned: true, price, text: `${formatAmount(price)} (munitions)` };
 }
 
 function drawShop() {
@@ -371,7 +376,7 @@ function drawShop() {
 
     DrawRect(0.5, headerY + 0.02, SHOP_WIDTH, 0.055, 15, 15, 20, 230);
     drawText('ARMURERIE', SHOP_LEFT + 0.01, headerY + 0.001, 0.55, 1, [255, 255, 255, 255]);
-    drawText(`${formatNumber(score)} pts`, SHOP_RIGHT - 0.01, headerY + 0.008, 0.42, 2, [255, 220, 100, 255]);
+    drawText(formatAmount(score), SHOP_RIGHT - 0.01, headerY + 0.008, 0.42, 2, [255, 220, 100, 255]);
 
     DrawRect(0.5, listY - 0.018, SHOP_WIDTH, 0.032, 40, 40, 55, 230);
     drawText(`<  ${category.label}  >`, 0.5, listY - 0.026, 0.40, 0, [200, 220, 255, 255]);
@@ -420,8 +425,27 @@ function drawShop() {
 // HUD
 // ---------------------------------------------------------------------------
 
-function formatNumber(value) {
-    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+// GTA's cash HUD is display only and lives entirely on this client: it is the
+// server score that is authoritative, mirrored into the stat the HUD reads.
+// Whatever the earn popup does to the balance is overwritten right after.
+function syncMoneyHud(delta) {
+    if (!MONEY.enabled) {
+        return;
+    }
+
+    if (delta > 0) {
+        NetworkEarnFromRockstar(delta);
+    }
+
+    StatSetInt(GetHashKey('MP0_WALLET_BALANCE'), score, true);
+    flashWallet();
+}
+
+// The wallet widget is meant to appear on a transaction and fade out, so we
+// show it and schedule the hide instead of leaving it pinned.
+function flashWallet() {
+    SetMultiplayerWalletCash();
+    walletHideAt = GetGameTimer() + 5000;
 }
 
 function pushFeed(text, colour) {
@@ -449,8 +473,8 @@ function drawText(text, x, y, scale, justification, colour) {
 
 function drawScorePanel() {
     DrawRect(0.905, 0.055, 0.17, 0.07, 0, 0, 0, 140);
-    drawText('SCORE', 0.985, 0.025, 0.32, 2, [200, 200, 200, 220]);
-    drawText(formatNumber(score), 0.985, 0.050, 0.65, 2, [255, 255, 255, 255]);
+    drawText(MONEY.enabled ? 'MAGOT' : 'SCORE', 0.985, 0.025, 0.32, 2, [200, 200, 200, 220]);
+    drawText(formatAmount(score), 0.985, 0.050, 0.65, 2, [255, 255, 255, 255]);
 }
 
 function drawFeed() {
@@ -475,11 +499,16 @@ function drawLeaderboard() {
     leaderboard.forEach((player, index) => {
         const y = 0.325 + index * 0.03;
         drawText(`${index + 1}. ${player.name}`, 0.37, y, 0.38, 1, [255, 255, 255, 240]);
-        drawText(formatNumber(player.score), 0.63, y, 0.38, 2, [255, 220, 100, 240]);
+        drawText(formatAmount(player.score), 0.63, y, 0.38, 2, [255, 220, 100, 240]);
     });
 }
 
 setTick(() => {
+    if (walletHideAt && GetGameTimer() > walletHideAt) {
+        RemoveMultiplayerWalletCash();
+        walletHideAt = 0;
+    }
+
     drawScorePanel();
     drawFeed();
 

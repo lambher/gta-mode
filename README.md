@@ -158,6 +158,22 @@ cours sont perdus, ils ne vivent qu'en mémoire.
 La console FXServer affiche les lignes `[gta-mode]` à chaque kill et chaque
 achat. Côté client, F8 ouvre la console du jeu et montre les erreurs de script.
 
+## Points ou argent du jeu
+
+Par défaut (`MONEY.enabled`), les points sont présentés comme de l'argent GTA :
+`$1 200` au lieu de `1 200 pts`, avec le widget de portefeuille de GTA Online
+et le « +$ » vert à chaque gain.
+
+C'est un **affichage**, pas un changement de système. Le solde qui fait foi
+reste celui du serveur : le HUD de GTA vit entièrement côté client, un joueur
+peut y écrire ce qu'il veut sans que ça change quoi que ce soit à ce qu'il peut
+acheter. On y recopie simplement le solde serveur après chaque transaction.
+
+Le compteur en haut à droite reste dessiné par la ressource, parce que lui
+s'affiche toujours ; le widget natif est le décor.
+
+Passer `MONEY.enabled` à `false` dans `config.js` pour revenir à un score sec.
+
 ## Réglages
 
 Tout est dans `config.js` :

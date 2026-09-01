@@ -32,6 +32,14 @@ const SPAWN = {
     vehicle: 'Bati',
 };
 
+// Présenter le score comme de l'argent GTA plutôt qu'un compteur de points.
+// Purement cosmétique : le solde qui fait foi reste celui du serveur, le HUD
+// de GTA Online n'en est qu'un reflet.
+const MONEY = {
+    enabled: true,
+    symbol: '$',
+};
+
 // Set to true for an arcade round where dying wipes your score.
 const RESET_SCORE_ON_DEATH = false;
 
@@ -87,6 +95,13 @@ const VEHICLE_MODELS = {
 const VEHICLE_CLASS_CATEGORY = {
     19: CATEGORY.ARMY,
 };
+
+// Amounts are written the same way on both sides: the shop menu, the kill
+// feed, and the refusals the server sends back.
+function formatAmount(value) {
+    const digits = String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return MONEY.enabled ? `${MONEY.symbol}${digits}` : `${digits} pts`;
+}
 
 // Same algorithm as GetHashKey(), kept in plain JS so the tables above can be
 // resolved identically on the client and the server.
@@ -260,6 +275,7 @@ globalThis.GameMode = {
     SCORES,
     LABELS,
     SPAWN,
+    MONEY,
     SHOP,
     WEAPON_CATEGORIES,
     WEAPONS,
@@ -270,6 +286,7 @@ globalThis.GameMode = {
     VEHICLE_MODEL_CATEGORY,
     VEHICLE_CLASS_CATEGORY,
     joaat,
+    formatAmount,
     categoryRank,
     scoreFor,
 };

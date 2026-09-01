@@ -1,5 +1,6 @@
 const {
     LABELS,
+    formatAmount,
     RESET_SCORE_ON_DEATH,
     SHOP,
     WEAPONS,
@@ -130,7 +131,7 @@ onNet('gtamode:buy', (weaponName) => {
 
     const price = priceFor(weaponName, owned);
     if (player.score < price) {
-        deny(id, `${weapon.label} : il te manque ${price - player.score} points.`);
+        deny(id, `${weapon.label} : il te manque ${formatAmount(price - player.score)}.`);
         return;
     }
 
