@@ -1,12 +1,14 @@
 const {
     CATEGORY,
-    LABELS,
     SPAWN,
+    SHOP,
+    WEAPON_CATEGORIES,
     PED_TYPE_CATEGORY,
     PED_MODEL_CATEGORY,
     VEHICLE_MODEL_CATEGORY,
     VEHICLE_CLASS_CATEGORY,
     categoryRank,
+    priceFor,
 } = globalThis.GameMode;
 
 // How often we sweep the streamed entities looking for fresh kills.
@@ -18,6 +20,7 @@ const FEED_SIZE = 5;
 let score = 0;
 let leaderboard = [];
 let feed = [];
+let ownedWeapons = new Set();
 
 // Entities we already made a decision about, so a corpse lying around is never
 // counted twice. Handles get recycled by the engine, hence the pruning below.
@@ -35,7 +38,7 @@ on('onClientGameTypeStart', () => {
             model: SPAWN.model,
         }, () => {
             emit('chat:addMessage', {
-                args: ['Bienvenue ! Tue pour marquer des points, appuie sur Z pour le classement.'],
+                args: ['Tue pour marquer des points. B : armurerie, Z : classement.'],
             });
             if (SPAWN.vehicle) {
                 spawnCar(SPAWN.vehicle);
@@ -47,12 +50,18 @@ on('onClientGameTypeStart', () => {
     exports.spawnmanager.forceRespawn();
 });
 
-onNet('gtamode:score', (total, value, category, kind) => {
+// ---------------------------------------------------------------------------
+// Événements serveur
+// ---------------------------------------------------------------------------
+
+onNet('gtamode:score', (total, delta, text) => {
     score = total;
 
-    // A resync after respawn carries no kill, so it gets no feed line.
-    if (value > 0) {
-        pushFeed(`+${formatNumber(value)}  ${LABELS[category] || '?'}${kind === 'vehicle' ? ' (véhicule)' : ''}`);
+    // A resync after respawn carries no transaction, so it gets no feed line.
+    if (delta > 0) {
+        pushFeed(`+${formatNumber(delta)}  ${text}`, [120, 255, 120, 230]);
+    } else if (delta < 0) {
+        pushFeed(`-${formatNumber(-delta)}  ${text}`, [255, 180, 90, 230]);
     }
 });
 
@@ -60,8 +69,38 @@ onNet('gtamode:leaderboard', (players) => {
     leaderboard = players;
 });
 
+onNet('gtamode:inventory', (weapons) => {
+    ownedWeapons = new Set(weapons);
+});
+
+onNet('gtamode:grant', (weaponName, ammo, refill) => {
+    const playerPed = PlayerPedId();
+    const hash = GetHashKey(weaponName);
+
+    if (refill) {
+        AddAmmoToPed(playerPed, hash, ammo);
+    } else {
+        GiveWeaponToPed(playerPed, hash, ammo, false, true);
+    }
+
+    PlaySoundFrontend(-1, 'PURCHASE', 'HUD_LIQUOR_STORE_SOUNDSET', false);
+});
+
+// A fresh ped spawns empty handed, so everything bought is handed back.
+onNet('gtamode:giveLoadout', (loadout) => {
+    const playerPed = PlayerPedId();
+    for (const item of loadout) {
+        GiveWeaponToPed(playerPed, GetHashKey(item.weapon), item.ammo, false, false);
+    }
+});
+
+onNet('gtamode:shopDenied', (reason) => {
+    setShopMessage(reason, [255, 100, 100, 255]);
+    PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+});
+
 // ---------------------------------------------------------------------------
-// Kill detection
+// Détection des kills
 // ---------------------------------------------------------------------------
 
 function categoryOfPed(ped) {
@@ -208,6 +247,176 @@ function scan() {
 setTimeout(scan, SCAN_INTERVAL);
 
 // ---------------------------------------------------------------------------
+// Armurerie
+// ---------------------------------------------------------------------------
+
+const SHOP_ROWS = 8;
+const SHOP_LEFT = 0.34;
+const SHOP_RIGHT = 0.66;
+const SHOP_WIDTH = SHOP_RIGHT - SHOP_LEFT;
+const ROW_HEIGHT = 0.032;
+
+let shopOpen = false;
+let categoryIndex = 0;
+let itemIndex = 0;
+let shopMessage = null;
+
+function currentCategory() {
+    return WEAPON_CATEGORIES[categoryIndex];
+}
+
+function currentWeapon() {
+    return currentCategory().weapons[itemIndex];
+}
+
+function isChased() {
+    return GetPlayerWantedLevel(PlayerId()) > SHOP.maxWantedLevel;
+}
+
+function setShopMessage(text, colour) {
+    shopMessage = { text, colour, expiresAt: GetGameTimer() + 4000 };
+}
+
+function toggleShop() {
+    shopOpen = !shopOpen;
+    if (shopOpen) {
+        shopMessage = null;
+        PlaySoundFrontend(-1, 'SELECT', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+    }
+}
+
+RegisterCommand('armurerie', () => toggleShop(), false);
+RegisterKeyMapping('armurerie', 'Ouvrir l\'armurerie', 'keyboard', 'B');
+
+function moveCategory(step) {
+    categoryIndex = (categoryIndex + step + WEAPON_CATEGORIES.length) % WEAPON_CATEGORIES.length;
+    itemIndex = 0;
+    PlaySoundFrontend(-1, 'NAV_LEFT_RIGHT', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+}
+
+function moveItem(step) {
+    const count = currentCategory().weapons.length;
+    itemIndex = (itemIndex + step + count) % count;
+    PlaySoundFrontend(-1, 'NAV_UP_DOWN', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+}
+
+function buySelected() {
+    const weapon = currentWeapon();
+
+    // The server checks this again; doing it here keeps the refusal instant.
+    if (isChased()) {
+        setShopMessage('Impossible en course-poursuite : sème la police d\'abord.', [255, 100, 100, 255]);
+        PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+        return;
+    }
+
+    emitNet('gtamode:buy', weapon.name);
+}
+
+function handleShopInput() {
+    // Keep the player from shooting or swapping weapons through the menu.
+    for (const control of [24, 25, 37, 44, 140, 141, 142, 257, 263, 264]) {
+        DisableControlAction(0, control, true);
+    }
+
+    if (IsControlJustPressed(0, 177)) {
+        shopOpen = false;
+        return;
+    }
+    if (IsControlJustPressed(0, 172)) {
+        moveItem(-1);
+    }
+    if (IsControlJustPressed(0, 173)) {
+        moveItem(1);
+    }
+    if (IsControlJustPressed(0, 174)) {
+        moveCategory(-1);
+    }
+    if (IsControlJustPressed(0, 175)) {
+        moveCategory(1);
+    }
+    if (IsControlJustPressed(0, 176)) {
+        buySelected();
+    }
+}
+
+// What a row offers right now: a purchase, an ammo refill, or nothing left to
+// buy for a melee weapon already owned.
+function offerFor(weapon) {
+    const owned = ownedWeapons.has(weapon.name);
+
+    if (!owned) {
+        return { owned: false, price: weapon.price, text: `${formatNumber(weapon.price)} pts` };
+    }
+    if (weapon.ammo <= 1) {
+        return { owned: true, price: 0, text: 'POSSÉDÉ' };
+    }
+
+    const price = priceFor(weapon.name, true);
+    return { owned: true, price, text: `${formatNumber(price)} pts (munitions)` };
+}
+
+function drawShop() {
+    const category = currentCategory();
+    const weapons = category.weapons;
+    const chased = isChased();
+
+    // Keep the selected row inside the visible window.
+    const scrollTop = Math.max(0, Math.min(itemIndex - SHOP_ROWS + 1, weapons.length - SHOP_ROWS));
+    const visible = weapons.slice(scrollTop, scrollTop + SHOP_ROWS);
+
+    const headerY = 0.20;
+    const listY = 0.285;
+    const bodyHeight = visible.length * ROW_HEIGHT;
+
+    DrawRect(0.5, headerY + 0.02, SHOP_WIDTH, 0.055, 15, 15, 20, 230);
+    drawText('ARMURERIE', SHOP_LEFT + 0.01, headerY + 0.001, 0.55, 1, [255, 255, 255, 255]);
+    drawText(`${formatNumber(score)} pts`, SHOP_RIGHT - 0.01, headerY + 0.008, 0.42, 2, [255, 220, 100, 255]);
+
+    DrawRect(0.5, listY - 0.018, SHOP_WIDTH, 0.032, 40, 40, 55, 230);
+    drawText(`<  ${category.label}  >`, 0.5, listY - 0.026, 0.40, 0, [200, 220, 255, 255]);
+
+    DrawRect(0.5, listY + bodyHeight / 2 - ROW_HEIGHT / 2, SHOP_WIDTH, bodyHeight, 0, 0, 0, 190);
+
+    visible.forEach((weapon, row) => {
+        const index = scrollTop + row;
+        const y = listY + row * ROW_HEIGHT - ROW_HEIGHT / 2;
+        const selected = index === itemIndex;
+        const offer = offerFor(weapon);
+        const affordable = score >= offer.price;
+
+        if (selected) {
+            DrawRect(0.5, y + 0.011, SHOP_WIDTH, ROW_HEIGHT, 245, 245, 245, 200);
+        }
+
+        let colour;
+        if (selected) {
+            colour = [10, 10, 10, 255];
+        } else if (offer.owned) {
+            colour = [255, 220, 100, 240];
+        } else if (affordable) {
+            colour = [255, 255, 255, 240];
+        } else {
+            colour = [140, 140, 140, 220];
+        }
+
+        drawText(weapon.label, SHOP_LEFT + 0.012, y, 0.36, 1, colour);
+        drawText(offer.text, SHOP_RIGHT - 0.012, y, 0.36, 2, colour);
+    });
+
+    const footerY = listY + bodyHeight;
+    DrawRect(0.5, footerY + 0.005, SHOP_WIDTH, 0.03, 15, 15, 20, 230);
+
+    if (shopMessage && shopMessage.expiresAt > GetGameTimer()) {
+        drawText(shopMessage.text, 0.5, footerY - 0.004, 0.33, 0, shopMessage.colour);
+    } else if (chased) {
+        drawText('COURSE-POURSUITE — ACHATS BLOQUÉS', 0.5, footerY - 0.004, 0.33, 0, [255, 90, 90, 255]);
+    } else {
+        drawText('Flèches : naviguer    Entrée : acheter    B : fermer', 0.5, footerY - 0.004, 0.33, 0, [180, 180, 180, 230]);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // HUD
 // ---------------------------------------------------------------------------
 
@@ -215,8 +424,8 @@ function formatNumber(value) {
     return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-function pushFeed(text) {
-    feed.push({ text, expiresAt: GetGameTimer() + FEED_DURATION });
+function pushFeed(text, colour) {
+    feed.push({ text, colour, expiresAt: GetGameTimer() + FEED_DURATION });
     if (feed.length > FEED_SIZE) {
         feed = feed.slice(feed.length - FEED_SIZE);
     }
@@ -249,7 +458,7 @@ function drawFeed() {
     feed = feed.filter((line) => line.expiresAt > now);
 
     feed.forEach((line, index) => {
-        drawText(line.text, 0.985, 0.105 + index * 0.028, 0.38, 2, [120, 255, 120, 230]);
+        drawText(line.text, 0.985, 0.105 + index * 0.028, 0.38, 2, line.colour);
     });
 }
 
@@ -274,6 +483,12 @@ setTick(() => {
     drawScorePanel();
     drawFeed();
 
+    if (shopOpen) {
+        handleShopInput();
+        drawShop();
+        return;
+    }
+
     // INPUT_MULTIPLAYER_INFO, the Z key by default.
     if (IsControlPressed(0, 20)) {
         drawLeaderboard();
@@ -281,7 +496,7 @@ setTick(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Spawn helpers
+// Spawn
 // ---------------------------------------------------------------------------
 
 function spawnCar(car) {

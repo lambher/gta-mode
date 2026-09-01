@@ -15,7 +15,7 @@ const SCORES = {
     [CATEGORY.CIVILIAN]: { ped: 1, vehicle: 10 },
     [CATEGORY.COP]: { ped: 100, vehicle: 1000 },
     [CATEGORY.SWAT]: { ped: 1000, vehicle: 10000 },
-    [CATEGORY.ARMY]: { ped: 1000, vehicle: 10000 },
+    [CATEGORY.ARMY]: { ped: 2000, vehicle: 20000 },
 };
 
 const LABELS = {
@@ -124,6 +124,127 @@ function categoryRank(category) {
     return score ? score.ped + score.vehicle : 0;
 }
 
+
+// ---------------------------------------------------------------------------
+// Armurerie
+// ---------------------------------------------------------------------------
+
+// Buying is only allowed once the police have fully lost you. GTA keeps the
+// stars up (flashing) for the whole search phase, so a wanted level of 0 is
+// exactly "the chase is over".
+const SHOP = {
+    maxWantedLevel: 0,
+    // Buying a weapon you already own only refills its ammo, at this fraction
+    // of the full price.
+    refillRatio: 0.2,
+};
+
+// Prices are set against what each target is worth, so every tier is roughly
+// paid for by the income of the tier below it:
+//   melee/pistols  a few dozen civilians (1 pt) or their cars (10 pts)
+//   SMG/shotguns   one good 2-star fight (cop 100 pts, police car 1000 pts)
+//   assault rifles several cop fights, or one NOOSE engagement (1000 pts)
+//   sniper/MG      NOOSE income, incl. their vehicles (10 000 pts)
+//   explosives     army income (2000 pts a soldier, 20 000 pts a tank)
+// You literally have to raise the police response to afford the gear needed to
+// survive it.
+const WEAPON_CATEGORIES = [
+    {
+        id: 'melee',
+        label: 'Corps à corps',
+        weapons: [
+            { name: 'WEAPON_KNUCKLE', label: 'Poing américain', price: 50, ammo: 1 },
+            { name: 'WEAPON_KNIFE', label: 'Couteau', price: 75, ammo: 1 },
+            { name: 'WEAPON_BAT', label: 'Batte de baseball', price: 75, ammo: 1 },
+            { name: 'WEAPON_MACHETE', label: 'Machette', price: 150, ammo: 1 },
+            { name: 'WEAPON_HATCHET', label: 'Hachette', price: 150, ammo: 1 },
+        ],
+    },
+    {
+        id: 'pistol',
+        label: 'Pistolets',
+        weapons: [
+            { name: 'WEAPON_PISTOL', label: 'Pistolet', price: 250, ammo: 100 },
+            { name: 'WEAPON_SNSPISTOL', label: 'Pistolet SNS', price: 350, ammo: 100 },
+            { name: 'WEAPON_COMBATPISTOL', label: 'Pistolet de combat', price: 500, ammo: 120 },
+            { name: 'WEAPON_APPISTOL', label: 'Pistolet automatique', price: 900, ammo: 150 },
+            { name: 'WEAPON_HEAVYPISTOL', label: 'Pistolet lourd', price: 1200, ammo: 120 },
+            { name: 'WEAPON_REVOLVER', label: 'Revolver', price: 1500, ammo: 60 },
+        ],
+    },
+    {
+        id: 'smg',
+        label: 'Mitraillettes / Fusils à pompe',
+        weapons: [
+            { name: 'WEAPON_MICROSMG', label: 'Micro-SMG', price: 1500, ammo: 250 },
+            { name: 'WEAPON_SAWNOFFSHOTGUN', label: 'Fusil à canon scié', price: 1800, ammo: 60 },
+            { name: 'WEAPON_SMG', label: 'SMG', price: 2500, ammo: 300 },
+            { name: 'WEAPON_PUMPSHOTGUN', label: 'Fusil à pompe', price: 2800, ammo: 80 },
+            { name: 'WEAPON_ASSAULTSMG', label: 'SMG d\'assaut', price: 3500, ammo: 300 },
+            { name: 'WEAPON_COMBATPDW', label: 'PDW de combat', price: 4000, ammo: 300 },
+        ],
+    },
+    {
+        id: 'rifle',
+        label: 'Fusils d\'assaut',
+        weapons: [
+            { name: 'WEAPON_ASSAULTRIFLE', label: 'Fusil d\'assaut', price: 6000, ammo: 400 },
+            { name: 'WEAPON_CARBINERIFLE', label: 'Carabine d\'assaut', price: 8000, ammo: 400 },
+            { name: 'WEAPON_BULLPUPRIFLE', label: 'Fusil bullpup', price: 9000, ammo: 400 },
+            { name: 'WEAPON_SPECIALCARBINE', label: 'Carabine spéciale', price: 10000, ammo: 400 },
+            { name: 'WEAPON_ADVANCEDRIFLE', label: 'Fusil avancé', price: 12000, ammo: 400 },
+        ],
+    },
+    {
+        id: 'heavy',
+        label: 'Précision / Mitrailleuses',
+        weapons: [
+            { name: 'WEAPON_SNIPERRIFLE', label: 'Fusil de précision', price: 15000, ammo: 50 },
+            { name: 'WEAPON_MG', label: 'Mitrailleuse', price: 18000, ammo: 500 },
+            { name: 'WEAPON_MARKSMANRIFLE', label: 'Fusil de tireur d\'élite', price: 22000, ammo: 80 },
+            { name: 'WEAPON_COMBATMG', label: 'Mitrailleuse de combat', price: 25000, ammo: 500 },
+            { name: 'WEAPON_HEAVYSNIPER', label: 'Fusil de précision lourd', price: 35000, ammo: 40 },
+        ],
+    },
+    {
+        id: 'explosive',
+        label: 'Explosifs',
+        weapons: [
+            { name: 'WEAPON_MOLOTOV', label: 'Cocktail Molotov (x5)', price: 2000, ammo: 5 },
+            { name: 'WEAPON_GRENADE', label: 'Grenade (x5)', price: 3500, ammo: 5 },
+            { name: 'WEAPON_STICKYBOMB', label: 'Bombe collante (x5)', price: 6000, ammo: 5 },
+            { name: 'WEAPON_GRENADELAUNCHER', label: 'Lance-grenades', price: 50000, ammo: 20 },
+            { name: 'WEAPON_RPG', label: 'Lance-roquettes', price: 75000, ammo: 10 },
+            { name: 'WEAPON_MINIGUN', label: 'Minigun', price: 120000, ammo: 2000 },
+            { name: 'WEAPON_HOMINGLAUNCHER', label: 'Lance-missiles guidé', price: 150000, ammo: 10 },
+            { name: 'WEAPON_RAILGUN', label: 'Railgun', price: 250000, ammo: 20 },
+        ],
+    },
+];
+
+const WEAPONS = {};
+for (const category of WEAPON_CATEGORIES) {
+    for (const weapon of category.weapons) {
+        WEAPONS[weapon.name] = weapon;
+    }
+}
+
+// What buying this weapon costs right now: full price the first time, an ammo
+// refill afterwards. Melee weapons have no ammo, so they are never re-sold.
+function priceFor(weaponName, owned) {
+    const weapon = WEAPONS[weaponName];
+    if (!weapon) {
+        return 0;
+    }
+    if (!owned) {
+        return weapon.price;
+    }
+    if (weapon.ammo <= 1) {
+        return 0;
+    }
+    return Math.ceil(weapon.price * SHOP.refillRatio);
+}
+
 // The single source of truth for a reward. Returns 0 for anything unknown,
 // which is how the server rejects a malformed kill report.
 function scoreFor(category, kind) {
@@ -139,6 +260,10 @@ globalThis.GameMode = {
     SCORES,
     LABELS,
     SPAWN,
+    SHOP,
+    WEAPON_CATEGORIES,
+    WEAPONS,
+    priceFor,
     RESET_SCORE_ON_DEATH,
     PED_TYPE_CATEGORY,
     PED_MODEL_CATEGORY,
