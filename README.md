@@ -76,6 +76,88 @@ Une arme achetée est acquise pour la session. La racheter ne coûte que **20 %
 du prix** et ne fait que recharger les munitions. À la mort, le ped réapparaît
 les mains vides : le serveur lui rend tout son arsenal, munitions pleines.
 
+## Déploiement
+
+Cette ressource est un **gametype** FiveM : elle a besoin d'un FXServer, elle
+ne se lance pas toute seule.
+
+### 1. Installer le serveur
+
+Télécharger un artifact récent (`fx.tar.xz` sous Linux, `server.7z` sous
+Windows) sur https://runtime.fivem.net/artifacts/fivem/ et le décompresser,
+puis cloner les ressources de base :
+
+```
+git clone https://github.com/citizenfx/cfx-server-data.git server-data
+```
+
+Générer une clé serveur sur https://keymaster.fivem.net et la mettre dans
+`sv_licenseKey`.
+
+### 2. Poser la ressource
+
+Le **nom du dossier** est ce qui compte, c'est lui qu'on écrit dans le
+`server.cfg` :
+
+```
+cd server-data/resources
+git clone https://github.com/lambher/gta-mode.git gta-mode
+cd gta-mode && git checkout claude/gta5-points-gamemode-ao62xc
+```
+
+### 3. Configurer
+
+Voir `server.cfg.example`. L'essentiel :
+
+```
+ensure mapmanager
+ensure chat
+ensure spawnmanager
+ensure gta-mode
+```
+
+`chat` et `spawnmanager` ne sont pas optionnels : le mode s'en sert pour faire
+apparaître le joueur et afficher ses messages.
+
+**Ne démarrer qu'un seul gametype.** Si `basic-gamemode` ou `fivem` tourne
+aussi, il y a conflit — commenter la ligne.
+
+### 4. Le piège de la carte
+
+Une carte déclare quels gametypes elle accepte, **par nom de ressource**. La
+carte par défaut n'accepte que le gametype nommé `fivem`, donc avec un dossier
+appelé `gta-mode` mapmanager ne démarrera jamais le mode et rien ne se passera
+à la connexion.
+
+Corriger dans le manifeste de la carte
+(`resources/[local]/fivem-map-skater/fxmanifest.lua`, ou `__resource.lua` sur
+les vieilles versions) :
+
+```lua
+resource_type 'map' { gameTypes = { ['gta-mode'] = true } }
+```
+
+### 5. Lancer
+
+```
+cd server-data
+/chemin/vers/artifact/run.sh +exec server.cfg      # Linux
+C:\chemin\vers\artifact\FXServer.exe +exec server.cfg   # Windows
+```
+
+Puis dans FiveM : F8 → `connect 127.0.0.1:30120`.
+
+### Mettre à jour ensuite
+
+Sur le serveur : `git pull`, puis dans la console FXServer
+`restart gta-mode` — pas besoin de redémarrer tout le serveur. Les scores en
+cours sont perdus, ils ne vivent qu'en mémoire.
+
+### Débogage
+
+La console FXServer affiche les lignes `[gta-mode]` à chaque kill et chaque
+achat. Côté client, F8 ouvre la console du jeu et montre les erreurs de script.
+
 ## Réglages
 
 Tout est dans `config.js` :
