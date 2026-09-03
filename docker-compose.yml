@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  fivem:
+    image: spritsail/fivem:latest
+    container_name: gta-mode-server
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    ports:
+      - "30120:30120"
+      - "30120:30120/udp"
+    environment:
+      # Your Cfx.re server license key (https://keymaster.fivem.net/)
+      - LICENSE_KEY=${FIVEM_LICENSE_KEY}
+    volumes:
+      # Named volume to isolate FiveM cache, logs, and default assets from your codebase
+      - server-data:/config
+      # Mount your local server.cfg configuration file
+      - ./server.cfg:/config/server.cfg:ro
+      # Mount this repository directly into the container as a FiveM resource
+      - .:/config/resources/gta-mode:ro
+
+volumes:
+  server-data:
