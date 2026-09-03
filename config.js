@@ -40,6 +40,13 @@ const MONEY = {
     symbol: '$',
 };
 
+// Affichage du meilleur joueur sur la carte
+const LEADER_BLIP = {
+    enabled: true,
+    updateInterval: 5000, // Fréquence de rafraîchissement de la position (ms)
+    stealthRadius: 150.0, // Rayon de furtivité en mètres (disparition du blip)
+};
+
 // Ce qui arrive à l'argent quand on meurt.
 //   'bloodstain' : il tombe sur place, à récupérer en revenant le chercher.
 //                  N'importe qui peut le ramasser : tuer quelqu'un, c'est
@@ -332,6 +339,7 @@ globalThis.GameMode = {
     SHOP,
     SHOP_CATEGORIES,
     CATALOG,
+    LEADER_BLIP,
     isConsumable,
     multiplierFor,
     priceFor,

@@ -9,6 +9,7 @@ const {
     multiplierFor,
     priceFor,
     scoreFor,
+    LEADER_BLIP,
 } = globalThis.GameMode;
 
 // How many players the on-screen leaderboard shows.
@@ -290,3 +291,48 @@ on('respawnPlayerPedEvent', (id) => {
     emitNet('gtamode:bloodstains', id, [...bloodstains.values()]);
     broadcastLeaderboard();
 });
+
+// ---------------------------------------------------------------------------
+// Cible Prioritaire (Leader Position)
+// ---------------------------------------------------------------------------
+
+let lastLeaderId = null;
+
+function currentLeader() {
+    let leader = null;
+    let maxScore = 0;
+    for (const player of players.values()) {
+        if (player.score > maxScore) {
+            maxScore = player.score;
+            leader = player;
+        }
+    }
+    return leader;
+}
+
+if (LEADER_BLIP.enabled) {
+    setInterval(() => {
+        const leader = currentLeader();
+        const leaderId = leader ? leader.id : null;
+
+        if (leaderId !== lastLeaderId) {
+            if (leader) {
+                emitNet('chat:addMessage', -1, {
+                    args: [`${leader.name} est maintenant la cible prioritaire avec ${formatAmount(leader.score)} !`],
+                });
+            }
+            lastLeaderId = leaderId;
+        }
+
+        if (leaderId) {
+            const [x, y, z] = positionOf(leaderId, [0.0, 0.0, 0.0]);
+            if (x !== 0.0 || y !== 0.0 || z !== 0.0) {
+                emitNet('gtamode:leaderPosition', -1, leaderId, leader.name, x, y, z);
+                return;
+            }
+        }
+        
+        // No leader or leader position unknown
+        emitNet('gtamode:leaderPosition', -1, null, null, 0.0, 0.0, 0.0);
+    }, LEADER_BLIP.updateInterval);
+}

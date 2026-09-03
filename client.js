@@ -13,6 +13,7 @@ const {
     VEHICLE_CLASS_CATEGORY,
     categoryRank,
     priceFor,
+    LEADER_BLIP,
 } = globalThis.GameMode;
 
 // How often we sweep the streamed entities looking for fresh kills.
@@ -125,6 +126,12 @@ onNet('gtamode:bloodstains', (stains) => {
 onNet('gtamode:shopDenied', (reason) => {
     setShopMessage(reason, [255, 100, 100, 255]);
     PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
+});
+
+let leaderData = { id: null, name: null, x: 0.0, y: 0.0, z: 0.0 };
+
+onNet('gtamode:leaderPosition', (id, name, x, y, z) => {
+    leaderData = { id, name, x, y, z };
 });
 
 // ---------------------------------------------------------------------------
@@ -360,6 +367,44 @@ function drawBloodstains(playerPed) {
             refreshBloodstainBlips();
             PlaySoundFrontend(-1, 'PICK_UP', 'HUD_FRONTEND_DEFAULT_SOUNDSET', false);
             return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cible prioritaire
+// ---------------------------------------------------------------------------
+
+let leaderBlip = null;
+
+function updateLeaderBlip(playerPed) {
+    if (!LEADER_BLIP.enabled || !leaderData.id || leaderData.id === clientId()) {
+        if (leaderBlip) {
+            RemoveBlip(leaderBlip);
+            leaderBlip = null;
+        }
+        return;
+    }
+
+    const pos = GetEntityCoords(playerPed, false);
+    const distance = Math.hypot(pos[0] - leaderData.x, pos[1] - leaderData.y, pos[2] - leaderData.z);
+
+    if (distance < LEADER_BLIP.stealthRadius) {
+        if (leaderBlip) {
+            RemoveBlip(leaderBlip);
+            leaderBlip = null;
+        }
+    } else {
+        if (!leaderBlip) {
+            leaderBlip = AddBlipForCoord(leaderData.x, leaderData.y, leaderData.z);
+            SetBlipSprite(leaderBlip, 432); // Couronne
+            SetBlipColour(leaderBlip, 1);  // Rouge
+            SetBlipScale(leaderBlip, 1.1);
+            BeginTextCommandSetBlipName('STRING');
+            AddTextComponentString(`Cible prioritaire : ${leaderData.name}`);
+            EndTextCommandSetBlipName(leaderBlip);
+        } else {
+            SetBlipCoords(leaderBlip, leaderData.x, leaderData.y, leaderData.z);
         }
     }
 }
@@ -675,6 +720,8 @@ setTick(() => {
     }
 
     const playerPed = PlayerPedId();
+
+    updateLeaderBlip(playerPed);
 
     drawScorePanel();
     drawMomentum();
