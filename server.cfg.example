@@ -1,0 +1,37 @@
+# Exemple de configuration FXServer pour faire tourner gta-mode.
+# Copie ces lignes dans le server.cfg de ton serveur, ou pars de ce fichier.
+
+endpoint_add_tcp "0.0.0.0:30120"
+endpoint_add_udp "0.0.0.0:30120"
+
+# Ressources de base, fournies par cfx-server-data.
+# gta-mode s'appuie sur spawnmanager (le spawn) et chat (les messages).
+ensure mapmanager
+ensure chat
+ensure spawnmanager
+ensure sessionmanager
+ensure baseevents
+ensure hardcap
+
+# La carte. ATTENTION : son manifeste doit accepter notre gametype, sinon
+# mapmanager ne démarrera jamais le mode. Voir la section Déploiement du README.
+ensure fivem-map-skater
+
+# Le mode de jeu. Le nom doit être celui du DOSSIER de la ressource.
+ensure gta-mode
+
+# Ne PAS démarrer un autre gametype en même temps (basic-gamemode, fivem, ...),
+# ils entrent en conflit.
+
+sv_hostname "Points"
+sv_maxclients 32
+sv_scriptHookAllowed 0
+
+# Clé à générer sur https://keymaster.fivem.net
+sv_licenseKey "REMPLACE_MOI"
+
+# Optionnel, pour l'authentification Steam
+# set steam_webApiKey "REMPLACE_MOI"
+
+add_ace group.admin command allow
+add_principal identifier.fivem:1 group.admin
